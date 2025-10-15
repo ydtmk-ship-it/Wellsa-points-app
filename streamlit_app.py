@@ -22,25 +22,27 @@ ADMIN_ID = st.secrets["admin"]["id"]
 ADMIN_PASS = st.secrets["admin"]["password"]
 
 # ===============================
-# 関数
+# 関数群
 # ===============================
 def normalize_name(name: str):
     """名前の空白などを統一"""
     return str(name).strip().replace("　", " ").lower()
 
 def load_data():
+    """ポイント履歴を読み込み"""
     if os.path.exists(DATA_FILE):
         return pd.read_csv(DATA_FILE)
     else:
         return pd.DataFrame(columns=["日付", "利用者名", "項目", "ポイント", "所属部署", "コメント"])
 
 def save_data(df):
+    """ポイント履歴を保存"""
     df.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
 
 def generate_comment(item, points):
     """AIが過去コメント傾向を学習し、必ず「ありがとう」を含む短いコメントを生成"""
     try:
-        # 過去コメント履歴の抽出
+        # 過去コメント履歴を取得
         if os.path.exists(DATA_FILE):
             df_hist = pd.read_csv(DATA_FILE)
             df_hist = df_hist[df_hist["項目"] == item]
@@ -77,7 +79,7 @@ def generate_comment(item, points):
         return "今日もありがとう😊"
 
 # ===============================
-# サイドバー：モード選択
+# サイドバー
 # ===============================
 mode = st.sidebar.radio("モードを選択", ["利用者モード", "職員モード"])
 
@@ -92,11 +94,11 @@ if mode == "職員モード":
     if "is_admin" not in st.session_state:
         st.session_state["is_admin"] = False
 
-    # --- ログイン処理 ---
+    # --- ログイン画面 ---
     if not st.session_state["staff_logged_in"]:
         dept = st.selectbox("部署を選択", list(STAFF_ACCOUNTS.keys()) + ["管理者"])
-        input_id = st.text_input("ログインID", key="staff_id")
-        input_pass = st.text_input("パスワード", type="password", key="staff_pass")
+        input_id = st.text_input("ログインID")
+        input_pass = st.text_input("パスワード", type="password")
 
         if st.button("ログイン"):
             if dept == "管理者":
@@ -119,13 +121,13 @@ if mode == "職員モード":
                 else:
                     st.error("IDまたはパスワードが違います。")
 
-    # --- ログイン後画面 ---
+    # --- ログイン後 ---
     else:
         dept = st.session_state["staff_dept"]
         is_admin = st.session_state["is_admin"]
         st.sidebar.success(f"✅ ログイン中：{dept}")
 
-        # 管理者かどうかでメニュー分岐
+        # 管理者のみ設定画面を表示
         staff_tab_list = [
             "ポイント付与",
             "履歴閲覧",
@@ -145,8 +147,19 @@ if mode == "職員モード":
 
             # 利用者プルダウン
             if os.path.exists(USER_FILE):
-                df_user = pd.read_csv(USER_FILE)
-                user_name = st.selectbox("利用者を選択", df_user["氏名"])
+                try:
+                    df_user = pd.read_csv(USER_FILE)
+                    # 安全な列判定
+                    if "氏名" in df_user.columns:
+                        user_list = df_user["氏名"].dropna().tolist()
+                    elif "名前" in df_user.columns:
+                        user_list = df_user["名前"].dropna().tolist()
+                    else:
+                        st.warning("利用者名の列が見つかりません。CSVの1行目に『氏名』を追加してください。")
+                        user_list = []
+                except Exception:
+                    user_list = []
+                user_name = st.selectbox("利用者を選択", user_list)
             else:
                 st.warning("利用者が未登録です。『利用者登録』で登録してください。")
                 user_name = None
@@ -179,7 +192,6 @@ if mode == "職員モード":
                     }
                     df = pd.concat([df, pd.DataFrame([new_record])], ignore_index=True)
                     save_data(df)
-
                     st.success(f"{user_name} に {points_value} pt を付与しました！（{dept}）")
                 else:
                     st.warning("利用者と項目を選択してください。")
