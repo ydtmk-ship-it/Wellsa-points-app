@@ -75,6 +75,7 @@ def generate_comment(item, points):
     except Exception:
         return "今日もありがとう😊"
 
+
 # ===============================
 # モード選択
 # ===============================
@@ -180,7 +181,72 @@ if mode == "職員モード":
                         st.success(f"{len(delete_rows)} 件を削除しました。")
                         st.rerun()
 
-        # --- グループホーム別ランキング ---
+        # --- 利用者登録 ---
+        elif staff_tab == "利用者登録" and is_admin:
+            st.subheader("🧍‍♀️ 利用者登録")
+            if os.path.exists(FACILITY_FILE):
+                facility_list = pd.read_csv(FACILITY_FILE)["施設名"].dropna().tolist()
+            else:
+                facility_list = []
+                st.info("⚠️ 施設が未登録です。")
+
+            with st.form("user_register_form"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    last_name = st.text_input("姓（例：田中）")
+                with col2:
+                    first_name = st.text_input("名（例：太郎）")
+                facility = st.selectbox("所属施設", facility_list)
+                submitted = st.form_submit_button("登録")
+
+            if submitted and last_name and first_name:
+                full_name = f"{last_name.strip()} {first_name.strip()}"
+                df_user = pd.read_csv(USER_FILE) if os.path.exists(USER_FILE) else pd.DataFrame(columns=["氏名", "施設"])
+                df_user = pd.concat([df_user, pd.DataFrame([{"氏名": full_name, "施設": facility}])], ignore_index=True)
+                df_user.to_csv(USER_FILE, index=False, encoding="utf-8-sig")
+                st.success(f"{full_name}（{facility}）を登録しました。")
+                st.rerun()
+
+            if os.path.exists(USER_FILE):
+                df_user = pd.read_csv(USER_FILE)
+                st.dataframe(df_user, use_container_width=True)
+
+        # --- 活動項目設定 ---
+        elif staff_tab == "活動項目設定" and is_admin:
+            st.subheader("⚙ 活動項目設定")
+            with st.form("item_form"):
+                item = st.text_input("活動項目名")
+                points = st.number_input("ポイント数", min_value=1, step=1)
+                submitted = st.form_submit_button("登録")
+            if submitted and item:
+                df_item = pd.read_csv(ITEM_FILE) if os.path.exists(ITEM_FILE) else pd.DataFrame(columns=["項目", "ポイント"])
+                df_item = pd.concat([df_item, pd.DataFrame([{"項目": item, "ポイント": points}])], ignore_index=True)
+                df_item.to_csv(ITEM_FILE, index=False, encoding="utf-8-sig")
+                st.success(f"{item}（{points}pt）を登録しました。")
+                st.rerun()
+
+            if os.path.exists(ITEM_FILE):
+                df_item = pd.read_csv(ITEM_FILE)
+                st.dataframe(df_item, use_container_width=True)
+
+        # --- 施設設定 ---
+        elif staff_tab == "施設設定" and is_admin:
+            st.subheader("🏠 施設設定")
+            with st.form("facility_form"):
+                facility_name = st.text_input("施設名")
+                submitted = st.form_submit_button("登録")
+            if submitted and facility_name:
+                df_fac = pd.read_csv(FACILITY_FILE) if os.path.exists(FACILITY_FILE) else pd.DataFrame(columns=["施設名"])
+                df_fac = pd.concat([df_fac, pd.DataFrame([{"施設名": facility_name}])], ignore_index=True)
+                df_fac.to_csv(FACILITY_FILE, index=False, encoding="utf-8-sig")
+                st.success(f"施設『{facility_name}』を登録しました。")
+                st.rerun()
+
+            if os.path.exists(FACILITY_FILE):
+                df_fac = pd.read_csv(FACILITY_FILE)
+                st.dataframe(df_fac, use_container_width=True)
+
+        # --- ランキング ---
         elif staff_tab == "グループホーム別ランキング":
             st.subheader("🏠 グループホーム別ポイントランキング（月ごと）")
             if os.path.exists(DATA_FILE) and os.path.exists(USER_FILE):
@@ -200,47 +266,6 @@ if mode == "職員モード":
                 st.dataframe(df_home[["順位表示", "施設", "ポイント"]], use_container_width=True)
             else:
                 st.info("データがありません。")
-
-        # --- 利用者登録 ---
-        elif staff_tab == "利用者登録" and is_admin:
-            st.subheader("🧍‍♀️ 利用者登録")
-            with st.form("user_form"):
-                name = st.text_input("氏名")
-                facility = st.selectbox("所属施設を選択", pd.read_csv(FACILITY_FILE)["施設名"].tolist() if os.path.exists(FACILITY_FILE) else [])
-                submitted = st.form_submit_button("登録")
-            if submitted and name:
-                df_user = pd.read_csv(USER_FILE) if os.path.exists(USER_FILE) else pd.DataFrame(columns=["氏名", "施設"])
-                df_user = pd.concat([df_user, pd.DataFrame([{"氏名": name, "施設": facility}])], ignore_index=True)
-                df_user.to_csv(USER_FILE, index=False, encoding="utf-8-sig")
-                st.success(f"{name}（{facility}）を登録しました。")
-                st.rerun()
-
-        # --- 活動項目設定 ---
-        elif staff_tab == "活動項目設定" and is_admin:
-            st.subheader("⚙ 活動項目設定")
-            with st.form("item_form"):
-                item = st.text_input("活動項目名")
-                points = st.number_input("ポイント数", min_value=1, step=1)
-                submitted = st.form_submit_button("登録")
-            if submitted and item:
-                df_item = pd.read_csv(ITEM_FILE) if os.path.exists(ITEM_FILE) else pd.DataFrame(columns=["項目", "ポイント"])
-                df_item = pd.concat([df_item, pd.DataFrame([{"項目": item, "ポイント": points}])], ignore_index=True)
-                df_item.to_csv(ITEM_FILE, index=False, encoding="utf-8-sig")
-                st.success(f"{item}（{points}pt）を登録しました。")
-                st.rerun()
-
-        # --- 施設設定 ---
-        elif staff_tab == "施設設定" and is_admin:
-            st.subheader("🏠 施設設定")
-            with st.form("facility_form"):
-                facility_name = st.text_input("施設名")
-                submitted = st.form_submit_button("登録")
-            if submitted and facility_name:
-                df_fac = pd.read_csv(FACILITY_FILE) if os.path.exists(FACILITY_FILE) else pd.DataFrame(columns=["施設名"])
-                df_fac = pd.concat([df_fac, pd.DataFrame([{"施設名": facility_name}])], ignore_index=True)
-                df_fac.to_csv(FACILITY_FILE, index=False, encoding="utf-8-sig")
-                st.success(f"施設『{facility_name}』を登録しました。")
-                st.rerun()
 
         st.sidebar.button("🚪 ログアウト", on_click=lambda: (st.session_state.clear(), st.rerun()))
 
@@ -328,20 +353,4 @@ else:
             df_all_users = pd.read_csv(USER_FILE)
             df["年月"] = pd.to_datetime(df["日付"], errors="coerce").dt.to_period("M").astype(str)
             month_list = sorted(df["年月"].unique(), reverse=True)
-            selected_month = st.selectbox("表示する月を選択", month_list, index=0)
-            df_month = df[df["年月"] == selected_month]
-            merged = pd.merge(df_month, df_all_users[["氏名", "施設"]],
-                              left_on="利用者名", right_on="氏名", how="left")
-            df_home = merged.groupby("施設")["ポイント"].sum().reset_index().sort_values("ポイント", ascending=False)
-            df_home["順位"] = range(1, len(df_home) + 1)
-            df_home["順位表示"] = df_home["順位"].apply(lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x))
-            user_fac = df_all_users.loc[df_all_users["氏名"] == user_name, "施設"].values[0] if user_name in df_all_users["氏名"].values else None
-
-            def highlight_row(row):
-                if row["施設"] == user_fac:
-                    return ['background-color: #d2e3fc'] * len(row)
-                return [''] * len(row)
-
-            st.dataframe(df_home[["順位表示", "施設", "ポイント"]].style.apply(highlight_row, axis=1), use_container_width=True)
-
-        st.sidebar.button("🚪 ログアウト", on_click=lambda: (st.session_state.clear(), st.rerun()))
+            selected_month = st.select
