@@ -23,7 +23,6 @@ ADMIN_PASS = st.secrets["admin"]["password"]
 # ユーティリティ
 # ===============================
 def clean_name(s: str):
-    """全角・半角・改行・スペースを除去して比較安全に"""
     return (
         str(s)
         .encode("utf-8", "ignore")
@@ -62,7 +61,7 @@ def read_facility_list():
     return pd.DataFrame(columns=["施設名"])
 
 # ===============================
-# AIコメント生成（利用者本人＋項目限定）
+# AIコメント生成（本人＋項目限定）
 # ===============================
 def generate_comment(user_name, item, points):
     try:
@@ -101,10 +100,13 @@ def generate_comment(user_name, item, points):
 mode = st.sidebar.radio("モードを選択", ["利用者モード", "職員モード"])
 
 # =========================================================
+# 職員モード（略：前回のv24部分そのまま）
+# =========================================================
+# =========================================================
 # 職員モード
 # =========================================================
 if mode == "職員モード":
-    st.title("👩‍💼 職員モード")
+    st.title("📝 職員モード")
 
     if "staff_logged_in" not in st.session_state:
         st.session_state["staff_logged_in"] = False
@@ -306,5 +308,111 @@ if mode == "職員モード":
                     st.info("ポイントデータがありません。")
             else:
                 st.info("データがありません。")
+
+        st.sidebar.button("🚪 ログアウト", on_click=lambda: (st.session_state.clear(), st.rerun()))
+
+
+# =========================================================
+# 🧍‍♀️ 利用者モード
+# =========================================================
+if mode == "利用者モード":
+    st.title("👫 利用者モード")
+
+    if "user_logged_in" not in st.session_state:
+        st.session_state["user_logged_in"] = False
+        st.session_state["user_name"] = None
+
+    df_user = read_user_list()
+
+    # --- ログイン ---
+    if not st.session_state["user_logged_in"]:
+        if df_user.empty:
+            st.info("利用者が登録されていません。職員に登録を依頼してください。")
+        else:
+            user_list = df_user["氏名"].dropna().tolist()
+            selected_name = st.selectbox("あなたのお名前を選んでください", user_list)
+            if st.button("ログイン"):
+                st.session_state["user_logged_in"] = True
+                st.session_state["user_name"] = selected_name
+                st.success(f"{selected_name} さん、ようこそ！")
+                st.rerun()
+
+    # --- ログイン後 ---
+    else:
+        user_name = st.session_state["user_name"]
+        st.sidebar.success(f"✅ ログイン中：{user_name}")
+        df = load_data()
+        df_user = read_user_list()
+
+        user_facility = df_user.loc[df_user["氏名"] == user_name, "施設"].iloc[0] if user_name in df_user["氏名"].values else "未登録"
+
+        st.markdown(f"### 🏠 所属施設：{user_facility}")
+
+        # --- 自分のポイント履歴 ---
+        df_user_points = df[df["利用者名"] == user_name]
+
+        if not df_user_points.empty:
+            st.subheader("💎 最近のポイント履歴")
+            st.dataframe(df_user_points[["日付", "項目", "ポイント", "コメント"]].sort_values("日付", ascending=False), use_container_width=True)
+
+            # --- 月ごとのがんばり ---
+            st.subheader("📅 あなたの月ごとのがんばり")
+
+            df_user_points["年月"] = pd.to_datetime(df_user_points["日付"], errors="coerce").dt.to_period("M").astype(str)
+            monthly_points = df_user_points.groupby("年月")["ポイント"].sum().reset_index().sort_values("年月")
+            monthly_points["前月比"] = monthly_points["ポイント"].diff()
+            monthly_points["変化"] = monthly_points["前月比"].apply(lambda x: "↑" if x > 0 else ("↓" if x < 0 else "→"))
+            monthly_points["バッジ"] = monthly_points["前月比"].apply(
+                lambda x: "🏅 成長" if x > 0 else ("💪 がんばろう" if x < 0 else "🟢 維持")
+            )
+
+            monthly_points_display = monthly_points.rename(columns={
+                "年月": "月", "ポイント": "合計ポイント", "変化": "前月比", "バッジ": "評価"
+            })
+            st.dataframe(monthly_points_display, use_container_width=True)
+
+            if len(monthly_points) >= 2:
+                last_row = monthly_points.iloc[-1]
+                if last_row["前月比"] > 0:
+                    st.success("🏅 成長バッジを獲得しました！前月よりポイントアップ！")
+                elif last_row["前月比"] < 0:
+                    st.warning("💪 がんばろうバッジ：前月より少なめでした。来月もファイト！")
+                else:
+                    st.info("🟢 ポイントは前月と同じです。継続がんばっていますね！")
+
+            # --- 累計ポイント ---
+            total_points = int(df_user_points["ポイント"].sum())
+            st.metric("✨ あなたの累計ポイント", f"{total_points} pt")
+
+        else:
+            st.info("まだポイント履歴がありません。")
+
+        # --- グループホーム別ランキング ---
+        st.subheader("🏠 グループホーム別ポイントランキング")
+        df_user_all = read_user_list()
+        if not df.empty and not df_user_all.empty:
+            df = pd.merge(df, df_user_all, left_on="利用者名", right_on="氏名", how="left")
+            df["年月"] = pd.to_datetime(df["日付"], errors="coerce").dt.to_period("M").astype(str)
+
+            month_list = sorted(df["年月"].dropna().unique(), reverse=True)
+            selected_month = st.selectbox("表示する月を選択", month_list, index=0)
+            df_month = df[df["年月"] == selected_month]
+            df_home = df_month.groupby("施設", dropna=False)["ポイント"].sum().reset_index().fillna({"施設": "（未登録）"})
+            df_home = df_home.sort_values("ポイント", ascending=False)
+            df_home["順位"] = range(1, len(df_home) + 1)
+            df_home["順位表示"] = df_home["順位"].apply(
+                lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x)
+            )
+
+            def highlight_row(row):
+                if row["施設"] == user_facility:
+                    return ['background-color: #b3d9ff'] * len(row)
+                else:
+                    return [''] * len(row)
+
+            st.dataframe(
+                df_home[["順位表示", "施設", "ポイント"]].style.apply(highlight_row, axis=1),
+                use_container_width=True
+            )
 
         st.sidebar.button("🚪 ログアウト", on_click=lambda: (st.session_state.clear(), st.rerun()))
