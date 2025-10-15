@@ -66,7 +66,7 @@ if mode == "職員モード":
                 st.session_state["staff_logged_in"] = True
                 st.session_state["staff_dept"] = dept
                 st.success(f"{dept} としてログインしました！")
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("IDまたはパスワードが違います。")
 
