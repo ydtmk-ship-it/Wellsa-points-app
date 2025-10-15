@@ -196,6 +196,86 @@ if mode == "職員モード":
                     )
                     st.dataframe(df_home[["順位表示", "施設", "ポイント"]], use_container_width=True)
 
+        # --- 利用者登録 ---
+        elif staff_tab == "利用者登録" and is_admin:
+            st.subheader("🧍‍♀️ 利用者登録")
+            with st.form("user_form"):
+                last_name = st.text_input("姓")
+                first_name = st.text_input("名")
+                full_name = f"{last_name} {first_name}".strip()
+                facility = st.selectbox("所属グループホームを選択",
+                                        pd.read_csv(FACILITY_FILE)["施設名"].tolist() if os.path.exists(FACILITY_FILE) else [])
+                submitted_user = st.form_submit_button("登録")
+            if submitted_user and full_name:
+                df_user = pd.read_csv(USER_FILE) if os.path.exists(USER_FILE) else pd.DataFrame(columns=["氏名", "施設"])
+                df_user = pd.concat([df_user, pd.DataFrame([{"氏名": full_name, "施設": facility}])], ignore_index=True)
+                df_user.to_csv(USER_FILE, index=False, encoding="utf-8-sig")
+                st.success(f"利用者『{full_name}（{facility}）』を登録しました。")
+                st.rerun()
+
+            if os.path.exists(USER_FILE):
+                df_user = pd.read_csv(USER_FILE)
+                df_user["削除"] = False
+                edited_user = st.data_editor(df_user, use_container_width=True, key="user_edit")
+                delete_rows = edited_user[edited_user["削除"]]
+                if st.button("✓ チェックした利用者を削除"):
+                    if not delete_rows.empty:
+                        df_user = df_user.drop(delete_rows.index)
+                        df_user.to_csv(USER_FILE, index=False, encoding="utf-8-sig")
+                        st.success(f"{len(delete_rows)} 名の利用者を削除しました。")
+                        st.rerun()
+
+        # --- 活動項目設定 ---
+        elif staff_tab == "活動項目設定" and is_admin:
+            st.subheader("⚙ 活動項目設定")
+            with st.form("item_form"):
+                item_name = st.text_input("活動項目名")
+                point_value = st.number_input("ポイント数", min_value=1, step=1)
+                submitted_item = st.form_submit_button("登録")
+            if submitted_item and item_name:
+                df_item = pd.read_csv(ITEM_FILE) if os.path.exists(ITEM_FILE) else pd.DataFrame(columns=["項目", "ポイント"])
+                df_item = pd.concat([df_item, pd.DataFrame([{"項目": item_name, "ポイント": point_value}])], ignore_index=True)
+                df_item.to_csv(ITEM_FILE, index=False, encoding="utf-8-sig")
+                st.success(f"活動項目『{item_name}（{point_value} pt）』を登録しました。")
+                st.rerun()
+
+            if os.path.exists(ITEM_FILE):
+                df_item = pd.read_csv(ITEM_FILE)
+                df_item["削除"] = False
+                edited_item = st.data_editor(df_item, use_container_width=True, key="item_edit")
+                delete_rows = edited_item[edited_item["削除"]]
+                if st.button("✓ チェックした項目を削除"):
+                    if not delete_rows.empty:
+                        df_item = df_item.drop(delete_rows.index)
+                        df_item.to_csv(ITEM_FILE, index=False, encoding="utf-8-sig")
+                        st.success(f"{len(delete_rows)} 件を削除しました。")
+                        st.rerun()
+
+        # --- 施設設定 ---
+        elif staff_tab == "施設設定" and is_admin:
+            st.subheader("🏠 グループホーム設定")
+            with st.form("facility_form"):
+                facility_name = st.text_input("グループホーム名（例：グループホーム美園）")
+                submitted_facility = st.form_submit_button("登録")
+            if submitted_facility and facility_name:
+                df_fac = pd.read_csv(FACILITY_FILE) if os.path.exists(FACILITY_FILE) else pd.DataFrame(columns=["施設名"])
+                df_fac = pd.concat([df_fac, pd.DataFrame([{"施設名": facility_name}])], ignore_index=True)
+                df_fac.to_csv(FACILITY_FILE, index=False, encoding="utf-8-sig")
+                st.success(f"グループホーム『{facility_name}』を登録しました。")
+                st.rerun()
+
+            if os.path.exists(FACILITY_FILE):
+                df_fac = pd.read_csv(FACILITY_FILE)
+                df_fac["削除"] = False
+                edited_fac = st.data_editor(df_fac, use_container_width=True, key="fac_edit")
+                delete_rows = edited_fac[edited_fac["削除"]]
+                if st.button("✓ チェックした施設を削除"):
+                    if not delete_rows.empty:
+                        df_fac = df_fac.drop(delete_rows.index)
+                        df_fac.to_csv(FACILITY_FILE, index=False, encoding="utf-8-sig")
+                        st.success(f"{len(delete_rows)} 件の施設を削除しました。")
+                        st.rerun()
+
         # --- ログアウト ---
         if st.button("🚪 ログアウト"):
             st.session_state["staff_logged_in"] = False
@@ -230,84 +310,27 @@ else:
         user_name = st.session_state["user_name"]
         st.sidebar.success(f"✅ ログイン中：{user_name}")
 
-        df_user = pd.read_csv(USER_FILE)
-        user_facility = df_user.loc[df_user["氏名"] == user_name, "施設"].values[0] if "施設" in df_user.columns else "不明"
-
         df["normalized_name"] = df["利用者名"].apply(normalize_name)
         df_user_points = df[df["normalized_name"] == normalize_name(user_name)]
 
-        # --- ダッシュボード ---
-        st.subheader("💎 あなたの成績まとめ")
-        if not df_user_points.empty:
-            df_user_points["年月"] = pd.to_datetime(df_user_points["日付"], errors="coerce").dt.to_period("M").astype(str)
-            monthly_points = df_user_points.groupby("年月")["ポイント"].sum().reset_index().sort_values("年月")
-            total_points = monthly_points["ポイント"].sum()
-            current_month = monthly_points.iloc[-1]["年月"]
-            max_row = monthly_points.loc[monthly_points["ポイント"].idxmax()]
-            avg_points = monthly_points["ポイント"].mean()
+        # 💬 最新のありがとうコメントカード
+        if not df_user_points.empty and "コメント" in df_user_points.columns:
+            last_comment = df_user_points["コメント"].dropna().iloc[-1]
+            st.markdown(f"""
+            <div style='background-color:#e6f2ff;padding:10px;border-radius:10px;margin-bottom:10px;'>
+                <h4 style='color:#007BFF;'>💬 最近のありがとうメッセージ</h4>
+                <p style='font-size:18px;margin:0;'>{last_comment}</p>
+            </div>
+            """, unsafe_allow_html=True)
 
-            st.table(pd.DataFrame({
-                "項目": ["今月の合計ポイント", "平均ポイント（月あたり）", "過去最高ポイントの月", "累計ポイント"],
-                "内容": [f"{int(monthly_points.iloc[-1]['ポイント'])} pt", f"{avg_points:.1f} pt",
-                        f"{max_row['年月']}（{int(max_row['ポイント'])} pt）🏅", f"{int(total_points)} pt"]
-            }))
-
-        # --- 月ごとのポイント一覧とバッジ表示 ---
-        st.subheader("📅 あなたの月ごとのがんばり")
-        if not df_user_points.empty:
-            monthly_points["前月比"] = monthly_points["ポイント"].diff()
-            monthly_points["変化"] = monthly_points["前月比"].apply(lambda x: "↑" if x > 0 else ("↓" if x < 0 else "→"))
-            monthly_points["バッジ"] = monthly_points["前月比"].apply(
-                lambda x: "🏅 成長" if x > 0 else ("💪 がんばろう" if x < 0 else "🟢 維持")
-            )
-            monthly_points["累計ポイント"] = monthly_points["ポイント"].cumsum()
-            monthly_points = monthly_points.loc[:, ~monthly_points.columns.duplicated()]
-
-            df_display = monthly_points.rename(columns={
-                "年月": "月",
-                "ポイント": "合計ポイント",
-                "前月比": "ポイント差",
-                "変化": "前月比",
-                "バッジ": "評価",
-                "累計ポイント": "累計"
-            })
-            st.dataframe(df_display, use_container_width=True)
-
-            if len(monthly_points) >= 2:
-                last_row = monthly_points.iloc[-1]
-                if last_row["前月比"] > 0:
-                    st.success("🏅 成長バッジを獲得しました！前月よりポイントアップ！")
-                elif last_row["前月比"] < 0:
-                    st.warning("💪 がんばろうバッジ：前月より少なめでした。来月もファイト！")
-                else:
-                    st.info("🟢 ポイントは前月と同じです。継続がんばっていますね！")
-
-        else:
+        # 💎 あなたのありがとう履歴
+        st.subheader("💎 あなたのありがとう履歴")
+        if df_user_points.empty:
             st.info("まだポイント履歴がありません。")
-
-        # --- グループホーム別ランキング ---
-        st.subheader("🏠 グループホーム別ポイントランキング（月ごと）")
-        if os.path.exists(USER_FILE) and not df.empty:
-            df_all_users = pd.read_csv(USER_FILE)
-            df["年月"] = pd.to_datetime(df["日付"], errors="coerce").dt.to_period("M").astype(str)
-            month_list = sorted(df["年月"].unique(), reverse=True)
-            selected_month = st.selectbox("表示する月を選択", month_list, index=0, key="month_user")
-            df_month = df[df["年月"] == selected_month]
-            merged = pd.merge(df_month, df_all_users[["氏名", "施設"]],
-                              left_on="利用者名", right_on="氏名", how="left")
-            df_home = merged.groupby("施設")["ポイント"].sum().reset_index().sort_values("ポイント", ascending=False)
-            df_home["順位"] = range(1, len(df_home) + 1)
-            df_home["順位表示"] = df_home["順位"].apply(
-                lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else f"{x}"
-            )
-
-            # 所属施設を青でハイライト
-            def highlight_facility(row):
-                color = 'background-color: lightblue' if row["施設"] == user_facility else ''
-                return [color] * len(row)
-
-            st.dataframe(df_home[["順位表示", "施設", "ポイント"]].style.apply(highlight_facility, axis=1),
-                         use_container_width=True)
+        else:
+            df_view = df_user_points[["日付", "項目", "ポイント", "コメント"]].sort_values("日付", ascending=False)
+            df_view.rename(columns={"コメント": "AIからのメッセージ"}, inplace=True)
+            st.dataframe(df_view, use_container_width=True)
 
         if st.button("🚪 ログアウト"):
             st.session_state["user_logged_in"] = False
