@@ -273,7 +273,7 @@ if mode == "職員モード":
             st.rerun()
 
 # =========================================================
-# 利用者モード
+# 利用者モード（登録者のみログイン可）
 # =========================================================
 else:
     st.title("🧍‍♀️ 利用者モード")
@@ -287,10 +287,20 @@ else:
         if st.button("ログイン"):
             if last_name and first_name:
                 full_name = f"{last_name} {first_name}"
-                st.session_state["user_logged_in"] = True
-                st.session_state["user_name"] = normalize_name(full_name)
-                st.success(f"{full_name} さん、こんにちは！")
-                st.rerun()
+                normalized_input = normalize_name(full_name)
+
+                if os.path.exists(USER_FILE):
+                    df_user = pd.read_csv(USER_FILE)
+                    registered_names = [normalize_name(n) for n in df_user["氏名"].dropna().tolist()]
+                    if normalized_input in registered_names:
+                        st.session_state["user_logged_in"] = True
+                        st.session_state["user_name"] = normalized_input
+                        st.success(f"{full_name} さん、こんにちは！")
+                        st.rerun()
+                    else:
+                        st.error("登録されていない利用者です。職員に確認してください。")
+                else:
+                    st.error("利用者データがまだ登録されていません。")
 
     if st.session_state.get("user_logged_in"):
         name = st.session_state["user_name"]
