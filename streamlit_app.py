@@ -206,6 +206,38 @@ if mode == "職員モード":
                         st.success(f"{len(delete_targets)} 名を削除しました。")
                         st.rerun()
 
+　　　　        # --- 活動項目設定 ---
+        elif staff_tab == "活動項目設定" and is_admin:
+            st.subheader("🧩 活動項目設定")
+
+            # 新規登録フォーム
+            with st.form("item_form"):
+                item_name = st.text_input("活動項目名")
+                point_value = st.number_input("ポイント数", min_value=1, step=1)
+                submitted_item = st.form_submit_button("登録")
+
+            if submitted_item and item_name:
+                df_item = pd.read_csv(ITEM_FILE) if os.path.exists(ITEM_FILE) else pd.DataFrame(columns=["項目", "ポイント"])
+                new_item = {"項目": item_name, "ポイント": point_value}
+                df_item = pd.concat([df_item, pd.DataFrame([new_item])], ignore_index=True)
+                df_item.to_csv(ITEM_FILE, index=False, encoding="utf-8-sig")
+                st.success(f"活動項目『{item_name}』（{point_value}pt）を登録しました。")
+                st.rerun()
+
+            # 既存項目の一覧・削除
+            if os.path.exists(ITEM_FILE):
+                df_item = pd.read_csv(ITEM_FILE)
+                if not df_item.empty:
+                    df_item["削除"] = False
+                    edited_items = st.data_editor(df_item, use_container_width=True, key="delete_items")
+                    delete_targets = edited_items[edited_items["削除"]]
+                    if st.button("チェックした項目を削除"):
+                        df_item = df_item.drop(delete_targets.index)
+                        df_item.to_csv(ITEM_FILE, index=False, encoding="utf-8-sig")
+                        st.success(f"{len(delete_targets)} 件の活動項目を削除しました。")
+                        st.rerun()
+
+        
         # --- 施設設定 ---
         elif staff_tab == "施設設定" and is_admin:
             st.subheader("🏠 施設設定")
