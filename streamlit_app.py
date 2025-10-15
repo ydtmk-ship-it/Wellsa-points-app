@@ -307,7 +307,7 @@ else:
         else:
             st.info("まだポイント履歴がありません。")
 
-        # 🏠 施設ランキング
+        # 🏠 施設ランキング（青ハイライト＋メダル）
         st.subheader("🏠 グループホーム別ランキング（月ごと）")
         if os.path.exists(USER_FILE) and not df.empty:
             df_all_users = pd.read_csv(USER_FILE)
@@ -320,4 +320,13 @@ else:
             df_home = merged.groupby("施設")["ポイント"].sum().reset_index().sort_values("ポイント", ascending=False)
             df_home["順位"] = range(1, len(df_home) + 1)
             df_home["順位表示"] = df_home["順位"].apply(lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x))
-            facility = df_all_users.loc[df_all_users["氏名"] == user_name, "施設"].values[0]
+            user_fac = df_all_users.loc[df_all_users["氏名"] == user_name, "施設"].values[0] if user_name in df_all_users["氏名"].values else None
+
+            def highlight_row(row):
+                if row["施設"] == user_fac:
+                    return ['background-color: #d2e3fc'] * len(row)
+                return [''] * len(row)
+
+            st.dataframe(df_home[["順位表示", "施設", "ポイント"]].style.apply(highlight_row, axis=1), use_container_width=True)
+
+        st.sidebar.button("🚪 ログアウト", on_click=lambda: (st.session_state.clear(), st.rerun()))
