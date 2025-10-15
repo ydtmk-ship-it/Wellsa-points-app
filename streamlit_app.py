@@ -64,7 +64,6 @@ def generate_comment(item, points):
     except Exception:
         return "今日もありがとう😊"
 
-
 # ===============================
 # モード選択
 # ===============================
@@ -231,29 +230,48 @@ else:
         user_name = st.session_state["user_name"]
         st.sidebar.success(f"✅ ログイン中：{user_name}")
 
+        df_user = pd.read_csv(USER_FILE)
+        user_facility = df_user.loc[df_user["氏名"] == user_name, "施設"].values[0] if "施設" in df_user.columns else "不明"
+
         df["normalized_name"] = df["利用者名"].apply(normalize_name)
         df_user_points = df[df["normalized_name"] == normalize_name(user_name)]
+
+        # --- ダッシュボード ---
+        st.subheader("💎 あなたの成績まとめ")
+        if not df_user_points.empty:
+            df_user_points["年月"] = pd.to_datetime(df_user_points["日付"], errors="coerce").dt.to_period("M").astype(str)
+            monthly_points = df_user_points.groupby("年月")["ポイント"].sum().reset_index().sort_values("年月")
+            total_points = monthly_points["ポイント"].sum()
+            current_month = monthly_points.iloc[-1]["年月"]
+            max_row = monthly_points.loc[monthly_points["ポイント"].idxmax()]
+            avg_points = monthly_points["ポイント"].mean()
+
+            st.table(pd.DataFrame({
+                "項目": ["今月の合計ポイント", "平均ポイント（月あたり）", "過去最高ポイントの月", "累計ポイント"],
+                "内容": [f"{int(monthly_points.iloc[-1]['ポイント'])} pt", f"{avg_points:.1f} pt",
+                        f"{max_row['年月']}（{int(max_row['ポイント'])} pt）🏅", f"{int(total_points)} pt"]
+            }))
 
         # --- 月ごとのポイント一覧とバッジ表示 ---
         st.subheader("📅 あなたの月ごとのがんばり")
         if not df_user_points.empty:
-            df_user_points["年月"] = pd.to_datetime(df_user_points["日付"], errors="coerce").dt.to_period("M").astype(str)
-            monthly_points = df_user_points.groupby("年月")["ポイント"].sum().reset_index().sort_values("年月")
             monthly_points["前月比"] = monthly_points["ポイント"].diff()
             monthly_points["変化"] = monthly_points["前月比"].apply(lambda x: "↑" if x > 0 else ("↓" if x < 0 else "→"))
             monthly_points["バッジ"] = monthly_points["前月比"].apply(
                 lambda x: "🏅 成長" if x > 0 else ("💪 がんばろう" if x < 0 else "🟢 維持")
             )
+            monthly_points["累計ポイント"] = monthly_points["ポイント"].cumsum()
+            monthly_points = monthly_points.loc[:, ~monthly_points.columns.duplicated()]
 
-            st.dataframe(
-                monthly_points.rename(columns={
-                    "年月": "月",
-                    "ポイント": "合計ポイント",
-                    "変化": "前月比",
-                    "バッジ": "評価"
-                }),
-                use_container_width=True
-            )
+            df_display = monthly_points.rename(columns={
+                "年月": "月",
+                "ポイント": "合計ポイント",
+                "前月比": "ポイント差",
+                "変化": "前月比",
+                "バッジ": "評価",
+                "累計ポイント": "累計"
+            })
+            st.dataframe(df_display, use_container_width=True)
 
             if len(monthly_points) >= 2:
                 last_row = monthly_points.iloc[-1]
@@ -263,6 +281,7 @@ else:
                     st.warning("💪 がんばろうバッジ：前月より少なめでした。来月もファイト！")
                 else:
                     st.info("🟢 ポイントは前月と同じです。継続がんばっていますね！")
+
         else:
             st.info("まだポイント履歴がありません。")
 
@@ -281,7 +300,14 @@ else:
             df_home["順位表示"] = df_home["順位"].apply(
                 lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else f"{x}"
             )
-            st.dataframe(df_home[["順位表示", "施設", "ポイント"]], use_container_width=True)
+
+            # 所属施設を青でハイライト
+            def highlight_facility(row):
+                color = 'background-color: lightblue' if row["施設"] == user_facility else ''
+                return [color] * len(row)
+
+            st.dataframe(df_home[["順位表示", "施設", "ポイント"]].style.apply(highlight_facility, axis=1),
+                         use_container_width=True)
 
         if st.button("🚪 ログアウト"):
             st.session_state["user_logged_in"] = False
