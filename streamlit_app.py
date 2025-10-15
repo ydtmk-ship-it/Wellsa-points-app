@@ -77,10 +77,10 @@ def generate_comment(user_name, item, points):
             history_summary = f"{user_name}さんのコメント履歴はまだありません。"
 
         prompt = f"""
-あなたは福祉施設の職員です。
+あなたは障がい福祉施設の職員です。
 {user_name}さんが『{item}』の活動に{points}ポイントを獲得しました。
 やさしいトーンで短い励ましコメントを作ってください。
-必ず「ありがとう」を含め、30文字以内、日本語、絵文字1つ。
+活動に対して必ず「ありがとう」を含め、30文字以内、日本語、絵文字1つ。
 {history_summary}
 """
         response = client.chat.completions.create(
@@ -279,11 +279,6 @@ else:
         # 入力 or 既存名から選択（入力を優先し、候補が複数ある時は選択してもらう）
         last_name = st.text_input("姓（例：田中）")
         first_name = st.text_input("名（例：太郎）")
-
-        df_user = read_user_list()
-        all_names = df_user["氏名"].dropna().tolist() if not df_user.empty else []
-        st.caption("登録済みの表示名から選ぶこともできます。")
-        pick = st.selectbox("登録済みの氏名から選択（任意）", ["— 選択しない —"] + all_names, index=0)
 
         if st.button("ログイン"):
             chosen = None
