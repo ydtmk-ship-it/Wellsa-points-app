@@ -18,8 +18,8 @@ if not os.path.exists(DATA_FILE):
     df.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
 
 # Streamlit設定
-st.set_page_config(page_title="ポイント管理アプリ", page_icon="⭐", layout="centered")
-st.title("🌸 福祉支援ポイント管理アプリ（β）")
+st.set_page_config(page_title="ウェルサポイント", page_icon="⭐", layout="centered")
+st.title("🌸 ウェルサポイント管理アプリ")
 
 st.sidebar.header("職員用メニュー")
 staff_name = st.sidebar.text_input("職員名を入力")
@@ -41,7 +41,7 @@ if view_mode == "ポイント付与":
             st.warning("利用者名と活動内容を入力してください。")
         else:
             # OpenAIでコメント生成
-            prompt = f"福祉施設の職員として、利用者さんが『{activity}』をしてくれました。\
+            prompt = f"障がい者福祉施設の職員として、利用者さんが『{activity}』をしてくれました。\
             優しく前向きに褒める短いコメントを日本語で30文字以内で書いてください。"
             response = client.chat.completions.create(
                 model="gpt-4o-mini",
