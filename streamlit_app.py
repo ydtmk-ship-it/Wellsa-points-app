@@ -7,7 +7,7 @@ from openai import OpenAI
 # ===============================
 # 基本設定
 # ===============================
-st.set_page_config(page_title="ウェルサポイント", page_icon="💎", layout="wide")
+st.set_page_config(page_title="Wellsaポイントアプリ", page_icon="💎", layout="wide")
 
 DATA_FILE = "points_data.csv"
 USER_FILE = "users.csv"
@@ -42,7 +42,6 @@ def save_data(df):
 def generate_comment(item, points):
     """AIが過去コメント傾向を学習し、必ず「ありがとう」を含む短いコメントを生成"""
     try:
-        # 過去コメント履歴を取得
         if os.path.exists(DATA_FILE):
             df_hist = pd.read_csv(DATA_FILE)
             df_hist = df_hist[df_hist["項目"] == item]
@@ -55,7 +54,7 @@ def generate_comment(item, points):
             history_summary = "コメント履歴はまだありません。"
 
         prompt = f"""
-あなたは障がい者福祉施設の職員です。
+あなたは福祉施設の職員です。
 以下は過去のコメント傾向です：
 {history_summary}
 
@@ -72,8 +71,7 @@ def generate_comment(item, points):
                 {"role": "user", "content": prompt}
             ]
         )
-        comment = response.choices[0].message.content.strip()
-        return comment
+        return response.choices[0].message.content.strip()
 
     except Exception:
         return "今日もありがとう😊"
@@ -94,7 +92,6 @@ if mode == "職員モード":
     if "is_admin" not in st.session_state:
         st.session_state["is_admin"] = False
 
-    # --- ログイン画面 ---
     if not st.session_state["staff_logged_in"]:
         dept = st.selectbox("部署を選択", list(STAFF_ACCOUNTS.keys()) + ["管理者"])
         input_id = st.text_input("ログインID")
@@ -121,22 +118,14 @@ if mode == "職員モード":
                 else:
                     st.error("IDまたはパスワードが違います。")
 
-    # --- ログイン後 ---
     else:
         dept = st.session_state["staff_dept"]
         is_admin = st.session_state["is_admin"]
         st.sidebar.success(f"✅ ログイン中：{dept}")
 
-        # 管理者のみ設定画面を表示
-        staff_tab_list = [
-            "ポイント付与",
-            "履歴閲覧",
-            "月別ポイントランキング（利用者別）",
-            "ポイント推移グラフ"
-        ]
+        staff_tab_list = ["ポイント付与", "履歴閲覧"]
         if is_admin:
-            staff_tab_list.insert(2, "利用者登録")
-            staff_tab_list.insert(3, "活動項目設定")
+            staff_tab_list += ["利用者登録", "活動項目設定"]
 
         staff_tab = st.sidebar.radio("機能を選択", staff_tab_list)
         df = load_data()
@@ -144,36 +133,30 @@ if mode == "職員モード":
         # --- ポイント付与 ---
         if staff_tab == "ポイント付与":
             st.subheader("💎 ポイント付与")
-
-            # 利用者プルダウン
             if os.path.exists(USER_FILE):
                 df_user = pd.read_csv(USER_FILE)
                 user_list = df_user["氏名"].dropna().tolist() if "氏名" in df_user.columns else []
                 user_name = st.selectbox("利用者を選択", user_list)
             else:
-                st.warning("利用者が未登録です。『利用者登録』で登録してください。")
+                st.warning("利用者が未登録です。")
                 user_name = None
 
-            # 項目プルダウン＋ポイント自動反映
             if os.path.exists(ITEM_FILE):
                 df_item = pd.read_csv(ITEM_FILE)
                 item_list = df_item["項目"].tolist()
                 selected_item = st.selectbox("活動項目を選択", item_list)
                 points_value = int(df_item.loc[df_item["項目"] == selected_item, "ポイント"].values[0])
-                st.number_input("付与ポイント数", value=points_value, key="auto_point", disabled=True)
+                st.number_input("付与ポイント数", value=points_value, disabled=True)
             else:
-                st.warning("活動項目が未登録です。『活動項目設定』で追加してください。")
+                st.warning("活動項目が未登録です。")
                 selected_item = None
                 points_value = 0
 
             if st.button("ポイントを付与"):
                 if user_name and selected_item:
-                    date_today = date.today().strftime("%Y-%m-%d")
                     comment = generate_comment(selected_item, points_value)
-                    st.info(f"✨ AIコメント: {comment}")
-
                     new_record = {
-                        "日付": date_today,
+                        "日付": date.today().strftime("%Y-%m-%d"),
                         "利用者名": user_name,
                         "項目": selected_item,
                         "ポイント": points_value,
@@ -182,102 +165,88 @@ if mode == "職員モード":
                     }
                     df = pd.concat([df, pd.DataFrame([new_record])], ignore_index=True)
                     save_data(df)
-                    st.success(f"{user_name} に {points_value} pt を付与しました！（{dept}）")
+                    st.success(f"{user_name} に {points_value} pt を付与しました！")
+                    st.info(f"AIコメント: {comment}")
                 else:
                     st.warning("利用者と項目を選択してください。")
 
         # --- 履歴閲覧（削除機能付き） ---
         elif staff_tab == "履歴閲覧":
-            st.subheader("🗂 ポイント履歴一覧")
+            st.subheader("🗂 ポイント履歴")
             if df.empty:
                 st.info("まだデータがありません。")
             else:
-                st.dataframe(df.sort_values("日付", ascending=False), use_container_width=True)
-                delete_index = st.number_input("削除したい行番号（上から0,1,2...）", min_value=0, step=1)
-                if st.button("選択行を削除"):
+                st.dataframe(df.sort_values("日付", ascending=False))
+                delete_index = st.number_input("削除する行番号（0から）", min_value=0, step=1)
+                if st.button("削除実行"):
                     if delete_index < len(df):
                         df = df.drop(df.index[int(delete_index)])
                         save_data(df)
-                        st.success("選択した履歴を削除しました。")
+                        st.success("削除しました。")
                         st.rerun()
 
         # --- 利用者登録（削除機能付き） ---
-        elif staff_tab == "利用者登録" and is_admin:
+        elif staff_tab == "利用者登録":
             st.subheader("🧍‍♀️ 利用者登録")
-
             with st.form("user_register_form"):
                 last_name = st.text_input("姓")
                 first_name = st.text_input("名")
                 memo = st.text_area("メモ（任意）")
                 submitted = st.form_submit_button("登録")
-
             if submitted and last_name and first_name:
                 full_name = f"{last_name} {first_name}"
                 df_user = pd.read_csv(USER_FILE) if os.path.exists(USER_FILE) else pd.DataFrame(columns=["氏名", "メモ"])
                 new_user = {"氏名": full_name, "メモ": memo}
                 df_user = pd.concat([df_user, pd.DataFrame([new_user])], ignore_index=True)
                 df_user.to_csv(USER_FILE, index=False, encoding="utf-8-sig")
-                st.success(f"{full_name} さんを登録しました。")
+                st.success(f"{full_name} を登録しました。")
                 st.rerun()
 
             if os.path.exists(USER_FILE):
                 df_user = pd.read_csv(USER_FILE)
                 st.dataframe(df_user)
-                delete_name = st.selectbox("削除したい利用者を選択", df_user["氏名"])
-                if st.button("選択利用者を削除"):
+                delete_name = st.selectbox("削除する利用者", df_user["氏名"])
+                if st.button("削除実行"):
                     df_user = df_user[df_user["氏名"] != delete_name]
                     df_user.to_csv(USER_FILE, index=False, encoding="utf-8-sig")
                     st.success(f"{delete_name} を削除しました。")
                     st.rerun()
 
-        # --- 活動項目設定（編集・削除機能付き） ---
-        elif staff_tab == "活動項目設定" and is_admin:
+        # --- 活動項目設定 ---
+        elif staff_tab == "活動項目設定":
             st.subheader("🛠 活動項目設定")
-
             with st.form("item_register_form"):
-                item_name = st.text_input("活動項目名（例：皿洗い手伝い）")
+                item_name = st.text_input("活動項目名")
                 point_value = st.number_input("ポイント数", min_value=0, step=10)
                 submitted_item = st.form_submit_button("登録")
-
             if submitted_item and item_name:
                 df_item = pd.read_csv(ITEM_FILE) if os.path.exists(ITEM_FILE) else pd.DataFrame(columns=["項目", "ポイント"])
                 new_item = {"項目": item_name, "ポイント": point_value}
                 df_item = pd.concat([df_item, pd.DataFrame([new_item])], ignore_index=True)
                 df_item.to_csv(ITEM_FILE, index=False, encoding="utf-8-sig")
-                st.success(f"活動項目『{item_name}』を登録しました。")
+                st.success(f"{item_name} を登録しました。")
                 st.rerun()
 
             if os.path.exists(ITEM_FILE):
                 df_item = pd.read_csv(ITEM_FILE)
                 st.dataframe(df_item)
-
-                edit_item = st.selectbox("編集する項目を選択", df_item["項目"])
-                new_point = st.number_input("新しいポイント数", min_value=0, step=10)
-                if st.button("ポイントを更新"):
-                    df_item.loc[df_item["項目"] == edit_item, "ポイント"] = new_point
-                    df_item.to_csv(ITEM_FILE, index=False, encoding="utf-8-sig")
-                    st.success(f"{edit_item} のポイントを {new_point} に更新しました。")
-                    st.rerun()
-
-                delete_item = st.selectbox("削除する項目を選択", df_item["項目"], key="del_item")
-                if st.button("選択項目を削除"):
+                delete_item = st.selectbox("削除する項目", df_item["項目"])
+                if st.button("項目削除"):
                     df_item = df_item[df_item["項目"] != delete_item]
                     df_item.to_csv(ITEM_FILE, index=False, encoding="utf-8-sig")
                     st.success(f"{delete_item} を削除しました。")
                     st.rerun()
 
-        # --- ログアウト ---
         if st.button("🚪 ログアウト"):
             st.session_state["staff_logged_in"] = False
             st.session_state["is_admin"] = False
             st.rerun()
 
 # =========================================================
-# 利用者モード（登録者のみログイン可）
+# 利用者モード（登録者のみログイン可・安全化済み）
 # =========================================================
 else:
     st.title("🧍‍♀️ 利用者モード")
-
     df = load_data()
 
     if not st.session_state.get("user_logged_in"):
@@ -290,17 +259,23 @@ else:
                 normalized_input = normalize_name(full_name)
 
                 if os.path.exists(USER_FILE):
-                    df_user = pd.read_csv(USER_FILE)
-                    registered_names = [normalize_name(n) for n in df_user["氏名"].dropna().tolist()]
-                    if normalized_input in registered_names:
-                        st.session_state["user_logged_in"] = True
-                        st.session_state["user_name"] = normalized_input
-                        st.success(f"{full_name} さん、こんにちは！")
-                        st.rerun()
-                    else:
-                        st.error("登録されていない利用者です。職員に確認してください。")
+                    try:
+                        df_user = pd.read_csv(USER_FILE)
+                        if "氏名" not in df_user.columns or df_user.empty:
+                            st.error("利用者データが登録されていません。職員に確認してください。")
+                        else:
+                            registered_names = [normalize_name(n) for n in df_user["氏名"].dropna().tolist()]
+                            if normalized_input in registered_names:
+                                st.session_state["user_logged_in"] = True
+                                st.session_state["user_name"] = normalized_input
+                                st.success(f"{full_name} さん、こんにちは！")
+                                st.rerun()
+                            else:
+                                st.error("登録されていない利用者です。職員に確認してください。")
+                    except Exception:
+                        st.error("利用者データの読み込みに失敗しました。職員に確認してください。")
                 else:
-                    st.error("利用者データがまだ登録されていません。")
+                    st.error("利用者データファイル（users.csv）が存在しません。")
 
     if st.session_state.get("user_logged_in"):
         name = st.session_state["user_name"]
@@ -319,15 +294,8 @@ else:
                 st.dataframe(
                     df_user[["日付", "項目", "ポイント", "所属部署", "コメント"]]
                     .sort_values("日付", ascending=False)
-                    .reset_index(drop=True),
-                    use_container_width=True
+                    .reset_index(drop=True)
                 )
-
-                st.write("### 📈 月別ポイント推移")
-                df_user["日付DATE"] = pd.to_datetime(df_user["日付"], errors="coerce")
-                df_user["年月"] = df_user["日付DATE"].dt.to_period("M").astype(str)
-                my_monthly = df_user.groupby("年月")["ポイント"].sum().reset_index().sort_values("年月")
-                st.line_chart(my_monthly.set_index("年月")["ポイント"])
 
         if st.button("🚪 ログアウト"):
             st.session_state["user_logged_in"] = False
