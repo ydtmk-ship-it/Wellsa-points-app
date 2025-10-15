@@ -250,6 +250,17 @@ if mode == "職員モード":
                 st.success(f"グループホーム『{facility_name}』を登録しました。")
                 st.rerun()
 
+            # --- 🧾 登録済み施設一覧を常に表示 ---
+        if os.path.exists(FACILITY_FILE):
+            df_fac = pd.read_csv(FACILITY_FILE)
+            if not df_fac.empty:
+                st.write("### 登録済みグループホーム一覧")
+                st.dataframe(df_fac)
+            else:
+                st.info("まだ登録されたグループホームはありません。")
+        else:
+            st.info("まだ登録されたグループホームはありません。")
+
         # --- グループホーム別ランキング ---
         elif staff_tab == "グループホーム別ランキング":
             st.subheader("🏠 グループホーム別ポイントランキング（月ごと）")
