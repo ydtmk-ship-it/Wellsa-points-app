@@ -20,7 +20,7 @@ ADMIN_ID = st.secrets["admin"]["id"]
 ADMIN_PASS = st.secrets["admin"]["password"]
 
 # ===============================
-# 関数
+# 関数群
 # ===============================
 def normalize_name(name: str):
     return str(name).strip().replace("　", " ").lower()
@@ -42,11 +42,6 @@ def read_items():
     if os.path.exists(ITEM_FILE):
         return pd.read_csv(ITEM_FILE)
     return pd.DataFrame(columns=["項目", "ポイント"])
-
-def read_facilities():
-    if os.path.exists(FACILITY_FILE):
-        return pd.read_csv(FACILITY_FILE)
-    return pd.DataFrame(columns=["施設名"])
 
 def generate_comment(item, points):
     try:
@@ -134,7 +129,7 @@ if mode == "職員モード":
 
         tabs = ["ポイント付与", "履歴閲覧", "グループホーム別ランキング"]
         if is_admin:
-            tabs += ["利用者登録", "活動項目設定", "施設設定"]
+            tabs += ["利用者登録", "活動項目設定"]
         choice = st.sidebar.radio("機能を選択", tabs)
 
         df_points = load_points()
@@ -145,13 +140,11 @@ if mode == "職員モード":
 
             df_item = read_items()
             if not df_item.empty and {"項目", "ポイント"}.issubset(df_item.columns):
-                # 数字抽出→float→int変換（"5pt"などもOK）
                 df_item["ポイント"] = (
                     df_item["ポイント"].astype(str).str.extract(r"(\d+)")[0].astype(float).fillna(0).astype(int)
                 )
                 item_points = {row["項目"]: int(row["ポイント"]) for _, row in df_item.iterrows()}
             else:
-                df_item = pd.DataFrame(columns=["項目", "ポイント"])
                 item_points = {}
 
             df_users = read_users()
@@ -161,21 +154,13 @@ if mode == "職員モード":
                 user_name = None
                 st.warning("利用者が未登録です。")
 
-            # 項目プルダウンとポイント反映
             if item_points:
                 selected_item = st.selectbox("活動項目を選択", list(item_points.keys()))
                 points_value = item_points.get(selected_item, 0)
-
-                # text_inputで確実に自動反映
-                st.text_input(
-                    "付与ポイント数",
-                    value=str(points_value),
-                    key=f"points_value_{selected_item}",
-                    disabled=True
-                )
+                st.text_input("付与ポイント数", value=str(points_value), key=f"points_value_{selected_item}", disabled=True)
             else:
-                st.warning("活動項目が未登録です。")
                 selected_item, points_value = None, 0
+                st.warning("活動項目が未登録です。")
 
             if st.button("ポイントを付与"):
                 if user_name and selected_item:
@@ -196,5 +181,27 @@ if mode == "職員モード":
                 else:
                     st.warning("利用者と項目を選択してください。")
 
-        # --- 以下（履歴閲覧、利用者登録、ランキングなど）は v8 と同じ ---
-        # （省略：動作確認済み）
+        # --- グループホーム別ランキング ---
+        elif choice == "グループホーム別ランキング":
+            st.subheader("🏠 グループホーム別ポイントランキング（月ごと）")
+            df_users = read_users()
+            if df_points.empty:
+                st.info("まだポイントデータがありません。")
+            elif df_users.empty or "施設" not in df_users.columns:
+                st.info("利用者データ（施設含む）がありません。")
+            else:
+                dfm = month_col(df_points)
+                months = sorted(dfm["年月"].unique(), reverse=True)
+                m = st.selectbox("表示する月を選択", months, index=0)
+                mdf = dfm[dfm["年月"] == m]
+                merged = pd.merge(mdf, df_users[["氏名", "施設"]], left_on="利用者名", right_on="氏名", how="left")
+                home = merged.groupby("施設")["ポイント"].sum().reset_index().sort_values("ポイント", ascending=False)
+                home["順位"] = range(1, len(home) + 1)
+                st.dataframe(home[["順位", "施設", "ポイント"]], use_container_width=True)
+
+        # --- ログアウトボタン（サイドバー下部に常時表示）---
+        st.sidebar.divider()
+        if st.sidebar.button("🚪 ログアウト"):
+            st.session_state["staff_logged_in"] = False
+            st.session_state["is_admin"] = False
+            st.rerun()
