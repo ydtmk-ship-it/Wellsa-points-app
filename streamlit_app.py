@@ -3,7 +3,6 @@ import pandas as pd
 import os
 from datetime import date
 from openai import OpenAI
-import matplotlib.pyplot as plt
 
 # ===============================
 # 基本設定
@@ -64,6 +63,7 @@ def generate_comment(item, points):
         return response.choices[0].message.content.strip()
     except Exception:
         return "今日もありがとう😊"
+
 
 # ===============================
 # モード選択
@@ -157,6 +157,22 @@ if mode == "職員モード":
                     st.success(f"{user_name} に {points_value} pt を付与しました！")
                     st.info(f"AIコメント: {comment}")
 
+        # --- 履歴閲覧 ---
+        elif staff_tab == "履歴閲覧":
+            st.subheader("🗂 ポイント履歴")
+            if df.empty:
+                st.info("まだデータがありません。")
+            else:
+                df["削除"] = False
+                edited_df = st.data_editor(df, use_container_width=True, key="delete_hist")
+                delete_rows = edited_df[edited_df["削除"]]
+                if st.button("チェックした行を削除"):
+                    if not delete_rows.empty:
+                        df = df.drop(delete_rows.index)
+                        save_data(df)
+                        st.success(f"{len(delete_rows)} 件を削除しました。")
+                        st.rerun()
+
         # --- グループホーム別ランキング ---
         elif staff_tab == "グループホーム別ランキング":
             st.subheader("🏠 グループホーム別ポイントランキング（月ごと）")
@@ -218,34 +234,35 @@ else:
         df["normalized_name"] = df["利用者名"].apply(normalize_name)
         df_user_points = df[df["normalized_name"] == normalize_name(user_name)]
 
-        # --- 棒グラフ ---
-        st.subheader("📊 あなたの獲得ポイント（月ごと）")
+        # --- 月ごとのポイント一覧とバッジ表示 ---
+        st.subheader("📅 あなたの月ごとのがんばり")
         if not df_user_points.empty:
             df_user_points["年月"] = pd.to_datetime(df_user_points["日付"], errors="coerce").dt.to_period("M").astype(str)
-            monthly_points = df_user_points.groupby("年月")["ポイント"].sum().reset_index()
+            monthly_points = df_user_points.groupby("年月")["ポイント"].sum().reset_index().sort_values("年月")
+            monthly_points["前月比"] = monthly_points["ポイント"].diff()
+            monthly_points["変化"] = monthly_points["前月比"].apply(lambda x: "↑" if x > 0 else ("↓" if x < 0 else "→"))
+            monthly_points["バッジ"] = monthly_points["前月比"].apply(
+                lambda x: "🏅 成長" if x > 0 else ("💪 がんばろう" if x < 0 else "🟢 維持")
+            )
 
-            plt.rcParams["font.family"] = "IPAexGothic"
-            width = max(6, len(monthly_points) * 0.8)
-            plt.figure(figsize=(width, 4))
-            bars = plt.bar(monthly_points["年月"], monthly_points["ポイント"], color="#1E90FF")
+            st.dataframe(
+                monthly_points.rename(columns={
+                    "年月": "月",
+                    "ポイント": "合計ポイント",
+                    "変化": "前月比",
+                    "バッジ": "評価"
+                }),
+                use_container_width=True
+            )
 
-            for bar in bars:
-                yval = bar.get_height()
-                plt.text(bar.get_x() + bar.get_width()/2, yval + 0.2, f"{int(yval)}", ha="center", va="bottom", fontsize=10)
-
-            plt.xlabel("年月", fontsize=10)
-            plt.ylabel("合計ポイント", fontsize=10)
-            plt.title("月ごとのポイント推移", fontsize=12)
-            plt.xticks(rotation=45)
-            st.pyplot(plt)
-
-            # --- 成長バッジ ---
             if len(monthly_points) >= 2:
-                latest, prev = monthly_points.iloc[-1]["ポイント"], monthly_points.iloc[-2]["ポイント"]
-                if latest > prev:
-                    st.success("🏅 成長バッジを獲得しました！ 前月よりポイントアップ！")
-                elif latest < prev:
+                last_row = monthly_points.iloc[-1]
+                if last_row["前月比"] > 0:
+                    st.success("🏅 成長バッジを獲得しました！前月よりポイントアップ！")
+                elif last_row["前月比"] < 0:
                     st.warning("💪 がんばろうバッジ：前月より少なめでした。来月もファイト！")
+                else:
+                    st.info("🟢 ポイントは前月と同じです。継続がんばっていますね！")
         else:
             st.info("まだポイント履歴がありません。")
 
