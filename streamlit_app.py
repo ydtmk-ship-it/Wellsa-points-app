@@ -173,7 +173,35 @@ else:
             else:
                 st.error("名前または生年月日が見つかりません。職員に確認してください。")
 
-    else:
+        else:
         name = st.session_state.user_name
         st.success(f"👋 ようこそ、{name} さん")
+
+        # ログアウトボタン
         if st.button("🚪 ログアウト"):
+            st.session_state.user_auth = False
+            st.session_state.user_name = None
+            st.rerun()
+
+        df = pd.read_csv(DATA_FILE)
+        df["normalized_name"] = df["利用者名"].apply(normalize_name)
+        my = df[df["normalized_name"] == name]
+
+        if my.empty:
+            st.info("まだポイントの記録がありません。")
+        else:
+            total = my["ポイント"].sum()
+            st.write(f"### 🌟 現在の合計ポイント：{total} pt")
+
+            # バッジ表示
+            badge_text = check_attendance_badge(df, name)
+            if "🏅" in badge_text:
+                st.success(badge_text)
+            else:
+                st.info(badge_text)
+
+            st.write("### 📖 自分の記録（新しい順）")
+            st.dataframe(
+                my[["日付","活動内容","ポイント","コメント"]].sort_values("日付", ascending=False),
+                use_container_width=True
+            )
