@@ -147,18 +147,8 @@ if mode == "職員モード":
 
             # 利用者プルダウン
             if os.path.exists(USER_FILE):
-                try:
-                    df_user = pd.read_csv(USER_FILE)
-                    # 安全な列判定
-                    if "氏名" in df_user.columns:
-                        user_list = df_user["氏名"].dropna().tolist()
-                    elif "名前" in df_user.columns:
-                        user_list = df_user["名前"].dropna().tolist()
-                    else:
-                        st.warning("利用者名の列が見つかりません。CSVの1行目に『氏名』を追加してください。")
-                        user_list = []
-                except Exception:
-                    user_list = []
+                df_user = pd.read_csv(USER_FILE)
+                user_list = df_user["氏名"].dropna().tolist() if "氏名" in df_user.columns else []
                 user_name = st.selectbox("利用者を選択", user_list)
             else:
                 st.warning("利用者が未登録です。『利用者登録』で登録してください。")
@@ -196,15 +186,22 @@ if mode == "職員モード":
                 else:
                     st.warning("利用者と項目を選択してください。")
 
-        # --- 履歴閲覧 ---
+        # --- 履歴閲覧（削除機能付き） ---
         elif staff_tab == "履歴閲覧":
             st.subheader("🗂 ポイント履歴一覧")
             if df.empty:
                 st.info("まだデータがありません。")
             else:
                 st.dataframe(df.sort_values("日付", ascending=False), use_container_width=True)
+                delete_index = st.number_input("削除したい行番号（上から0,1,2...）", min_value=0, step=1)
+                if st.button("選択行を削除"):
+                    if delete_index < len(df):
+                        df = df.drop(df.index[int(delete_index)])
+                        save_data(df)
+                        st.success("選択した履歴を削除しました。")
+                        st.rerun()
 
-        # --- 利用者登録（管理者専用） ---
+        # --- 利用者登録（削除機能付き） ---
         elif staff_tab == "利用者登録" and is_admin:
             st.subheader("🧍‍♀️ 利用者登録")
 
@@ -221,13 +218,22 @@ if mode == "職員モード":
                 df_user = pd.concat([df_user, pd.DataFrame([new_user])], ignore_index=True)
                 df_user.to_csv(USER_FILE, index=False, encoding="utf-8-sig")
                 st.success(f"{full_name} さんを登録しました。")
+                st.rerun()
 
             if os.path.exists(USER_FILE):
-                st.dataframe(pd.read_csv(USER_FILE))
+                df_user = pd.read_csv(USER_FILE)
+                st.dataframe(df_user)
+                delete_name = st.selectbox("削除したい利用者を選択", df_user["氏名"])
+                if st.button("選択利用者を削除"):
+                    df_user = df_user[df_user["氏名"] != delete_name]
+                    df_user.to_csv(USER_FILE, index=False, encoding="utf-8-sig")
+                    st.success(f"{delete_name} を削除しました。")
+                    st.rerun()
 
-        # --- 活動項目設定（管理者専用） ---
+        # --- 活動項目設定（編集・削除機能付き） ---
         elif staff_tab == "活動項目設定" and is_admin:
             st.subheader("🛠 活動項目設定")
+
             with st.form("item_register_form"):
                 item_name = st.text_input("活動項目名（例：皿洗い手伝い）")
                 point_value = st.number_input("ポイント数", min_value=0, step=10)
@@ -239,9 +245,26 @@ if mode == "職員モード":
                 df_item = pd.concat([df_item, pd.DataFrame([new_item])], ignore_index=True)
                 df_item.to_csv(ITEM_FILE, index=False, encoding="utf-8-sig")
                 st.success(f"活動項目『{item_name}』を登録しました。")
+                st.rerun()
 
             if os.path.exists(ITEM_FILE):
-                st.dataframe(pd.read_csv(ITEM_FILE))
+                df_item = pd.read_csv(ITEM_FILE)
+                st.dataframe(df_item)
+
+                edit_item = st.selectbox("編集する項目を選択", df_item["項目"])
+                new_point = st.number_input("新しいポイント数", min_value=0, step=10)
+                if st.button("ポイントを更新"):
+                    df_item.loc[df_item["項目"] == edit_item, "ポイント"] = new_point
+                    df_item.to_csv(ITEM_FILE, index=False, encoding="utf-8-sig")
+                    st.success(f"{edit_item} のポイントを {new_point} に更新しました。")
+                    st.rerun()
+
+                delete_item = st.selectbox("削除する項目を選択", df_item["項目"], key="del_item")
+                if st.button("選択項目を削除"):
+                    df_item = df_item[df_item["項目"] != delete_item]
+                    df_item.to_csv(ITEM_FILE, index=False, encoding="utf-8-sig")
+                    st.success(f"{delete_item} を削除しました。")
+                    st.rerun()
 
         # --- ログアウト ---
         if st.button("🚪 ログアウト"):
