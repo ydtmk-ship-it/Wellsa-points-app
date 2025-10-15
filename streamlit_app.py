@@ -22,8 +22,9 @@ ADMIN_PASS = st.secrets["admin"]["password"]
 # ===============================
 # 関数
 # ===============================
-def normalize_name(name: str):
-    return str(name).strip().replace("　", " ").lower()
+def normalize_fullname(s):
+    """全角・半角スペースを除去して比較"""
+    return str(s).replace("　", "").replace(" ", "").strip().lower()
 
 def load_data():
     if os.path.exists(DATA_FILE):
@@ -63,6 +64,7 @@ def generate_comment(item, points):
         return response.choices[0].message.content.strip()
     except Exception:
         return "今日もありがとう😊"
+
 
 # ===============================
 # モード選択
@@ -244,15 +246,14 @@ else:
         last_name = st.text_input("姓を入力してください")
         first_name = st.text_input("名を入力してください")
         if st.button("ログイン"):
-            full_name = f"{last_name} {first_name}"
-            normalized = normalize_name(full_name)
+            full_name = f"{last_name} {first_name}".strip()
             if os.path.exists(USER_FILE):
                 df_user = pd.read_csv(USER_FILE)
                 if "氏名" in df_user.columns:
-                    registered = [normalize_name(n) for n in df_user["氏名"]]
-                    if normalized in registered:
+                    match = df_user["氏名"].apply(normalize_fullname) == normalize_fullname(full_name)
+                    if match.any():
                         st.session_state["user_logged_in"] = True
-                        st.session_state["user_name"] = full_name
+                        st.session_state["user_name"] = df_user.loc[match, "氏名"].iloc[0]
                         st.success(f"{full_name} さん、ようこそ！")
                         st.rerun()
                     else:
@@ -261,8 +262,8 @@ else:
         user_name = st.session_state["user_name"]
         st.sidebar.success(f"✅ ログイン中：{user_name}")
 
-        df["normalized_name"] = df["利用者名"].apply(normalize_name)
-        df_user_points = df[df["normalized_name"] == normalize_name(user_name)]
+        # 自分のデータのみ完全一致で抽出
+        df_user_points = df[df["利用者名"].apply(normalize_fullname) == normalize_fullname(user_name)]
 
         # 💬 最近のありがとう
         if not df_user_points.empty:
@@ -304,8 +305,6 @@ else:
                     st.warning("💪 がんばろうバッジ：前月より少なめでした。")
                 else:
                     st.info("🟢 継続してがんばっています！")
-        else:
-            st.info("まだポイント履歴がありません。")
 
         # 🏠 施設ランキング（青ハイライト＋メダル）
         st.subheader("🏠 グループホーム別ランキング（月ごと）")
