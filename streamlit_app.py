@@ -1,230 +1,265 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, date
-from openai import OpenAI
 import os
-import re
-import calendar
+from datetime import date
+from openai import OpenAI
 
-# ====== OpenAI（Secretsから安全に読み込み）======
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# ===============================
+# 基本設定
+# ===============================
 
-# ====== ファイル定義 ======
+st.set_page_config(page_title="ウェルサポイント", page_icon="💎", layout="wide")
+
 DATA_FILE = "points_data.csv"
-USERS_FILE = "users.csv"
 
-# ====== 初期化 ======
-if not os.path.exists(DATA_FILE):
-    pd.DataFrame(columns=["日付", "利用者名", "活動内容", "ポイント", "コメント"]).to_csv(
-        DATA_FILE, index=False, encoding="utf-8-sig"
-    )
-if not os.path.exists(USERS_FILE):
-    pd.DataFrame(columns=["利用者名", "生年月日"]).to_csv(
-        USERS_FILE, index=False, encoding="utf-8-sig"
-    )
+# OpenAI クライアント（コメント生成用）
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# ====== 名前正規化 ======
-def normalize_name(name: str) -> str:
-    """名前の全角・半角・空白を統一"""
-    if not isinstance(name, str):
-        return ""
-    name = name.strip()
-    name = re.sub(r"\s+", "", name)
-    name = name.replace("　", "")
-    return name
+# Secretsから職員アカウントを取得
+STAFF_ACCOUNTS = st.secrets["staff_accounts"]
 
-# ====== バッジ付与判定（今月の通所日が半分以上）======
-def check_attendance_badge(df, user_name):
-    """今月の通所日数が月の半分以上ならバッジ付与"""
-    today = date.today()
-    year, month = today.year, today.month
-    days_in_month = calendar.monthrange(year, month)[1]
-    half_days = days_in_month // 2
 
-    df["normalized_name"] = df["利用者名"].apply(normalize_name)
-    this_month = df[df["日付"].str.startswith(f"{year}-{month:02d}")]
-    user_data = this_month[this_month["normalized_name"] == user_name]
+# ===============================
+# 関数
+# ===============================
 
-    visit_days = user_data["日付"].apply(lambda x: x.split(" ")[0]).nunique()
-    if visit_days >= half_days:
-        return f"🏅 バッジ獲得！今月 {visit_days} 日通所しました（{half_days} 日以上で達成）"
+def normalize_name(name: str):
+    """名前の全角・半角や空白を統一"""
+    return str(name).strip().replace("　", " ").lower()
+
+
+def load_data():
+    if os.path.exists(DATA_FILE):
+        return pd.read_csv(DATA_FILE)
     else:
-        return f"📅 今月 {visit_days} 日通所。あと {half_days - visit_days} 日でバッジ獲得！"
+        return pd.DataFrame(columns=["日付", "利用者名", "項目", "ポイント", "所属部署"])
 
-# ====== Streamlit設定 ======
-st.set_page_config(page_title="ウェルサポイント", page_icon="🌟", layout="centered")
-st.title("🌟 ウェルサポイント")
 
-# ====== モード選択 ======
-mode = st.sidebar.radio("モードを選択", ["職員モード", "利用者モード"])
-st.sidebar.write("---")
+def save_data(df):
+    df.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
 
-# ====== セッション初期化 ======
-if "user_auth" not in st.session_state:
-    st.session_state.user_auth = False
-if "user_name" not in st.session_state:
-    st.session_state.user_name = None
 
-# ---------------------------------------------------
+# ===============================
+# サイドバー：モード選択
+# ===============================
+
+mode = st.sidebar.radio("モードを選択", ["利用者モード", "職員モード"])
+
+# =========================================================
 # 職員モード
-# ---------------------------------------------------
+# =========================================================
 if mode == "職員モード":
-    st.sidebar.header("職員メニュー")
-    staff_tab = st.sidebar.radio("機能を選択", ["ポイント付与", "履歴閲覧", "利用者登録"])
+    st.title("👩‍💼 職員モード")
 
-    # --- 利用者登録 ---
-    if staff_tab == "利用者登録":
-        st.subheader("🗂️ 利用者登録（ログイン用の氏名・生年月日）")
-        name = st.text_input("利用者名（例：山田太郎 または 山田 太郎）")
-        bday = st.date_input("生年月日", value=date(2000, 1, 1), format="YYYY-MM-DD")
+    # --- ログイン処理 ---
+    if "staff_logged_in" not in st.session_state:
+        st.session_state["staff_logged_in"] = False
 
-        if st.button("➕ 登録/更新"):
-            users = pd.read_csv(USERS_FILE)
-            bday_str = bday.strftime("%Y-%m-%d")
-            norm_name = normalize_name(name)
-            users["normalized_name"] = users["利用者名"].apply(normalize_name)
-            mask = users["normalized_name"] == norm_name
+    if not st.session_state["staff_logged_in"]:
+        dept = st.selectbox("部署を選択", list(STAFF_ACCOUNTS.keys()))
+        input_id = st.text_input("ログインID", key="staff_id")
+        input_pass = st.text_input("パスワード", type="password", key="staff_pass")
 
-            if name.strip() == "":
-                st.warning("利用者名を入力してください。")
+        if st.button("ログイン"):
+            stored_id, stored_pass = STAFF_ACCOUNTS[dept].split("|")
+            if input_id == stored_id and input_pass == stored_pass:
+                st.session_state["staff_logged_in"] = True
+                st.session_state["staff_dept"] = dept
+                st.success(f"{dept} としてログインしました！")
+                st.experimental_rerun()
             else:
-                if mask.any():
-                    users.loc[mask, "生年月日"] = bday_str
-                    st.success(f"✅ {name} さんの生年月日を更新しました（{bday_str}）")
+                st.error("IDまたはパスワードが違います。")
+
+    else:
+        dept = st.session_state["staff_dept"]
+        st.sidebar.success(f"✅ {dept} ログイン中")
+
+        staff_tab = st.sidebar.radio(
+            "機能を選択",
+            [
+                "ポイント付与",
+                "履歴閲覧",
+                "利用者登録",
+                "活動項目設定",
+                "ランキング（項目別）",
+                "月別ポイントランキング（利用者別）",
+                "ポイント推移グラフ"
+            ]
+        )
+
+        df = load_data()
+
+        # --- ポイント付与 ---
+        if staff_tab == "ポイント付与":
+            st.subheader("💎 ポイント付与")
+
+            user_name = st.text_input("利用者名を入力")
+            selected_item = st.text_input("項目（例：皿洗い・通所日など）")
+            points_value = st.number_input("付与ポイント数", min_value=0, step=10)
+
+            if st.button("ポイントを付与"):
+                if user_name and selected_item:
+                    points = int(points_value)
+                    date_today = date.today().strftime("%Y-%m-%d")
+
+                    new_record = {
+                        "日付": date_today,
+                        "利用者名": user_name,
+                        "項目": selected_item,
+                        "ポイント": points,
+                        "所属部署": dept
+                    }
+
+                    df = pd.concat([df, pd.DataFrame([new_record])], ignore_index=True)
+                    save_data(df)
+
+                    st.success(f"{user_name} に {points} pt を付与しました！（{dept}）")
                 else:
-                    users = pd.concat(
-                        [users, pd.DataFrame([{"利用者名": name, "生年月日": bday_str}])],
-                        ignore_index=True,
-                    )
-                    st.success(f"✅ {name} さんを登録しました（{bday_str}）")
-                users.to_csv(USERS_FILE, index=False, encoding="utf-8-sig")
+                    st.warning("利用者名と項目を入力してください。")
 
-        st.write("### 現在の登録利用者")
-        users = pd.read_csv(USERS_FILE)
-        st.dataframe(users, use_container_width=True)
-
-    # --- ポイント付与 ---
-    elif staff_tab == "ポイント付与":
-        st.subheader("🎯 ポイントを付与する")
-        user = st.text_input("利用者名（登録時と同じ表記でもOK）")
-        activity = st.text_input("活動内容（例：皿洗い・通所など）")
-        point = st.number_input("ポイント数", min_value=1, step=1, value=10)
-
-        if st.button("✨ コメントを自動生成して登録"):
-            if not user or not activity:
-                st.warning("利用者名と活動内容を入力してください。")
+        # --- 履歴閲覧 ---
+        elif staff_tab == "履歴閲覧":
+            st.subheader("🗂 ポイント履歴一覧")
+            if df.empty:
+                st.info("まだデータがありません。")
             else:
-                prompt = (
-                    f"福祉施設の職員として、利用者さんが『{activity}』をしてくれました。"
-                    "優しく前向きに褒める短いコメントを日本語で30文字以内で書いてください。"
+                st.dataframe(
+                    df.sort_values("日付", ascending=False),
+                    use_container_width=True
                 )
-                try:
-                    response = client.chat.completions.create(
-                        model="gpt-4o-mini",
-                        messages=[
-                            {"role": "system", "content": "あなたは思いやりのある福祉職員です。"},
-                            {"role": "user", "content": prompt},
-                        ],
-                    )
-                    comment = response.choices[0].message.content.strip()
-                except Exception:
-                    comment = "ありがとう！とても助かりました。"
-                    st.warning("OpenAIコメント生成に失敗したため、定型文を使用しました。")
 
-                df = pd.read_csv(DATA_FILE)
-                new_row = {
-                    "日付": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "利用者名": normalize_name(user),
-                    "活動内容": activity,
-                    "ポイント": point,
-                    "コメント": comment,
-                }
-                df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-                df.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
+        # --- ランキング（月別ポイント） ---
+        elif staff_tab == "月別ポイントランキング（利用者別）":
+            st.subheader("🏆 月別ポイント獲得ランキング（上位10名）")
 
-                st.success(f"✅ {user}さんに{point}ptを付与しました！")
-                st.info(f"💬 コメント：{comment}")
+            if df.empty:
+                st.info("まだポイント記録がありません。")
+            else:
+                df["日付DATE"] = pd.to_datetime(df["日付"], errors="coerce")
+                df["年月"] = df["日付DATE"].dt.to_period("M").astype(str)
+                months = sorted(df["年月"].dropna().unique(), reverse=True)
 
-    # --- 履歴閲覧 ---
-    elif staff_tab == "履歴閲覧":
-        st.subheader("📊 ポイント履歴（全体）")
-        df = pd.read_csv(DATA_FILE)
-        if len(df) == 0:
-            st.info("まだ記録がありません。")
-        else:
-            df["normalized_name"] = df["利用者名"].apply(normalize_name)
-            user_filter = st.text_input("利用者名で絞り込み")
-            if user_filter:
-                df = df[
-                    df["normalized_name"].str.contains(normalize_name(user_filter), case=False, na=False)
+                selected_month = st.selectbox("📅 表示する月を選択", months, index=0)
+                year, month = map(int, selected_month.split("-"))
+
+                df_month = df[
+                    (df["日付DATE"].dt.year == year)
+                    & (df["日付DATE"].dt.month == month)
                 ]
 
-            total_points = df.groupby("利用者名")["ポイント"].sum().reset_index()
-            st.write("### 🧾 利用者別合計ポイント")
-            st.dataframe(total_points.sort_values("ポイント", ascending=False), use_container_width=True)
+                if df_month.empty:
+                    st.info(f"{selected_month} の記録はありません。")
+                else:
+                    rank_df = (
+                        df_month.groupby("利用者名")["ポイント"].sum().reset_index()
+                    ).sort_values("ポイント", ascending=False)
+                    rank_df["順位"] = range(1, len(rank_df) + 1)
+                    top10 = rank_df.head(10)
 
-            st.write("### 📋 詳細履歴")
-            st.dataframe(df.sort_values("日付", ascending=False), use_container_width=True)
+                    st.dataframe(top10[["順位", "利用者名", "ポイント"]])
+                    st.bar_chart(top10.set_index("利用者名")["ポイント"])
 
-# ---------------------------------------------------
-# 利用者モード
-# ---------------------------------------------------
-else:
-    st.subheader("🧍‍♀️ 利用者モード")
+        # --- ポイント推移グラフ ---
+        elif staff_tab == "ポイント推移グラフ":
+            st.subheader("📈 利用者別ポイント推移グラフ")
 
-    # --- 未ログイン時 ---
-    if not st.session_state.user_auth:
-        st.info("あなたのページを見るには、氏名と生年月日を入力してください。")
-        in_name = st.text_input("お名前（例：山田太郎 または 山田 太郎）")
-        in_bday = st.date_input("生年月日", value=date(2000, 1, 1), format="YYYY-MM-DD")
-
-        if st.button("🔐 ログイン"):
-            users = pd.read_csv(USERS_FILE)
-            bday_str = in_bday.strftime("%Y-%m-%d")
-            in_name_norm = normalize_name(in_name)
-            users["normalized_name"] = users["利用者名"].apply(normalize_name)
-            hit = users[
-                (users["normalized_name"] == in_name_norm)
-                & (users["生年月日"] == bday_str)
-            ]
-
-            if not hit.empty:
-                st.session_state.user_auth = True
-                st.session_state.user_name = in_name_norm
-                st.success(f"✅ ログインしました：{in_name} さん")
-                st.rerun()
+            if df.empty:
+                st.info("まだポイントデータがありません。")
             else:
-                st.error("名前または生年月日が見つかりません。職員に確認してください。")
+                df["日付DATE"] = pd.to_datetime(df["日付"], errors="coerce")
+                df["年月"] = df["日付DATE"].dt.to_period("M").astype(str)
+                monthly_points = (
+                    df.groupby(["利用者名", "年月"])["ポイント"].sum().reset_index()
+                )
+                users = sorted(monthly_points["利用者名"].unique())
+                selected_users = st.multiselect(
+                    "表示する利用者を選択", users, default=users[:3]
+                )
 
-    # --- ログイン済み時 ---
-    else:
-        name = st.session_state.user_name
-        st.success(f"👋 ようこそ、{name} さん")
+                if len(selected_users) > 0:
+                    chart_df = monthly_points[monthly_points["利用者名"].isin(selected_users)]
+                    chart_df = chart_df.pivot(index="年月", columns="利用者名", values="ポイント").fillna(0)
+                    st.line_chart(chart_df, use_container_width=True)
+                    st.dataframe(chart_df)
+                else:
+                    st.info("利用者を選択してください。")
+
+        # --- ログアウト ---
+        if st.button("🚪 ログアウト"):
+            st.session_state["staff_logged_in"] = False
+            st.experimental_rerun()
+
+
+# =========================================================
+# 利用者モード
+# =========================================================
+else:
+    st.title("🧍‍♀️ 利用者モード")
+
+    df = load_data()
+
+    name = st.text_input("氏名（フルネーム）を入力してください")
+    birth = st.date_input("生年月日を入力してください")
+
+    if st.button("ログイン"):
+        if name:
+            st.session_state["user_logged_in"] = True
+            st.session_state["user_name"] = normalize_name(name)
+            st.success(f"{name} さん、こんにちは！")
+            st.experimental_rerun()
+
+    if st.session_state.get("user_logged_in"):
+        name = st.session_state["user_name"]
+        st.sidebar.success(f"✅ ログイン中：{name}")
+
+        if df.empty:
+            st.info("まだポイントデータがありません。")
+        else:
+            df["normalized_name"] = df["利用者名"].apply(normalize_name)
+            df_user = df[df["normalized_name"] == name]
+
+            if df_user.empty:
+                st.warning("あなたの記録はまだありません。")
+            else:
+                st.write("### 💎 あなたのポイント履歴")
+                st.dataframe(
+                    df_user[["日付", "項目", "ポイント", "所属部署"]]
+                    .sort_values("日付", ascending=False)
+                    .reset_index(drop=True),
+                    use_container_width=True
+                )
+
+                # --- 月別ポイント推移 ---
+                st.write("### 📈 月別ポイント推移")
+                df_user["日付DATE"] = pd.to_datetime(df_user["日付"], errors="coerce")
+                df_user["年月"] = df_user["日付DATE"].dt.to_period("M").astype(str)
+                my_monthly = (
+                    df_user.groupby("年月")["ポイント"].sum().reset_index().sort_values("年月")
+                )
+                st.line_chart(my_monthly.set_index("年月")["ポイント"])
+
+                # --- 前月比較バッジ ---
+                if len(my_monthly) >= 2:
+                    current_month = my_monthly.iloc[-1]
+                    prev_month = my_monthly.iloc[-2]
+                    diff = current_month["ポイント"] - prev_month["ポイント"]
+
+                    if diff > 0:
+                        msg = f"🌟 成長バッジ獲得！ 前月より {diff} pt 増加しました👏"
+                        st.success(msg)
+                        st.toast(msg, icon="🌟")
+                        st.balloons()
+                    elif diff < 0:
+                        msg = f"💪 がんばろうバッジ！ 前月より {abs(diff)} pt 減少しました。"
+                        st.warning(msg)
+                        st.toast(msg, icon="💪")
+                    else:
+                        msg = "📊 前月と同じポイントでした。"
+                        st.info(msg)
+                        st.toast(msg, icon="📊")
+                else:
+                    st.caption("※ まだ比較できる前月データがありません。")
 
         if st.button("🚪 ログアウト"):
-            st.session_state.user_auth = False
-            st.session_state.user_name = None
-            st.rerun()
-
-        df = pd.read_csv(DATA_FILE)
-        df["normalized_name"] = df["利用者名"].apply(normalize_name)
-        my = df[df["normalized_name"] == name]
-
-        if my.empty:
-            st.info("まだポイントの記録がありません。")
-        else:
-            total = my["ポイント"].sum()
-            st.write(f"### 🌟 現在の合計ポイント：{total} pt")
-
-            # バッジ表示
-            badge_text = check_attendance_badge(df, name)
-            if "🏅" in badge_text:
-                st.success(badge_text)
-            else:
-                st.info(badge_text)
-
-            st.write("### 📖 自分の記録（新しい順）")
-            st.dataframe(
-                my[["日付", "活動内容", "ポイント", "コメント"]].sort_values("日付", ascending=False),
-                use_container_width=True,
-            )
+            st.session_state["user_logged_in"] = False
+            st.experimental_rerun()
