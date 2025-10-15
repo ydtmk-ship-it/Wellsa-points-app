@@ -22,9 +22,19 @@ ADMIN_PASS = st.secrets["admin"]["password"]
 # ===============================
 # 関数
 # ===============================
-def normalize_fullname(s):
-    """全角・半角スペースを除去して比較"""
-    return str(s).replace("　", "").replace(" ", "").strip().lower()
+def clean_name(s: str):
+    """不可視文字や全角スペースを除去して比較安全に"""
+    return (
+        str(s)
+        .encode("utf-8", "ignore")
+        .decode("utf-8")
+        .replace("　", "")
+        .replace(" ", "")
+        .replace("\n", "")
+        .replace("\r", "")
+        .strip()
+        .lower()
+    )
 
 def load_data():
     if os.path.exists(DATA_FILE):
@@ -51,7 +61,7 @@ def generate_comment(item, points):
 あなたは障がい者福祉施設の職員です。
 『{item}』の活動に{points}ポイントを付与します。
 やさしく短い励ましコメントを生成してください。
-必ず「ありがとう」を含め、30文字以内、日本語、絵文字1つ。
+活動に対して必ず「ありがとう」を含め、30文字以内、日本語、絵文字1つ。
 {history_summary}
 """
         response = client.chat.completions.create(
@@ -64,7 +74,6 @@ def generate_comment(item, points):
         return response.choices[0].message.content.strip()
     except Exception:
         return "今日もありがとう😊"
-
 
 # ===============================
 # モード選択
@@ -239,36 +248,44 @@ if mode == "職員モード":
 # 利用者モード
 # =========================================================
 else:
-    st.title("🧍‍♀️ 利用者モード")
+    st.title("👫 利用者モード")
     df = load_data()
 
+    # --- ログイン ---
     if not st.session_state.get("user_logged_in"):
         last_name = st.text_input("姓を入力してください")
         first_name = st.text_input("名を入力してください")
         if st.button("ログイン"):
-            full_name = f"{last_name} {first_name}".strip()
+            full_name = f"{last_name.strip()} {first_name.strip()}"
             if os.path.exists(USER_FILE):
                 df_user = pd.read_csv(USER_FILE)
-                if "氏名" in df_user.columns:
-                    match = df_user["氏名"].apply(normalize_fullname) == normalize_fullname(full_name)
-                    if match.any():
-                        st.session_state["user_logged_in"] = True
-                        st.session_state["user_name"] = df_user.loc[match, "氏名"].iloc[0]
-                        st.success(f"{full_name} さん、ようこそ！")
-                        st.rerun()
-                    else:
-                        st.error("登録されていない利用者です。")
+                df_user["clean_name"] = df_user["氏名"].apply(clean_name)
+                input_clean = clean_name(full_name)
+                match = df_user[df_user["clean_name"] == input_clean]
+
+                if not match.empty:
+                    real_name = match.iloc[0]["氏名"]
+                    st.session_state.clear()
+                    st.session_state["user_logged_in"] = True
+                    st.session_state["user_name"] = real_name
+                    st.success(f"{real_name} さん、ようこそ！")
+                    st.rerun()
+                else:
+                    st.error("登録されていない利用者です。職員に確認してください。")
+
+    # --- ログイン後 ---
     else:
         user_name = st.session_state["user_name"]
         st.sidebar.success(f"✅ ログイン中：{user_name}")
 
-        # 自分のデータのみ完全一致で抽出
-        df_user_points = df[df["利用者名"].apply(normalize_fullname) == normalize_fullname(user_name)]
+        df["clean_name"] = df["利用者名"].apply(clean_name)
+        df_user_points = df[df["clean_name"] == clean_name(user_name)]
 
         # 💬 最近のありがとう
         if not df_user_points.empty:
             last_comment = df_user_points["コメント"].dropna().iloc[-1]
-            st.markdown(f"<div style='background:#e6f2ff;padding:10px;border-radius:8px;'><h4>💬 最近のありがとう</h4><p>{last_comment}</p></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='background:#e6f2ff;padding:10px;border-radius:8px;'>"
+                        f"<h4>💬 最近のありがとう</h4><p>{last_comment}</p></div>", unsafe_allow_html=True)
 
         # 💎 ありがとう履歴
         st.subheader("💎 あなたのありがとう履歴")
@@ -287,14 +304,13 @@ else:
                 .groupby("年月")["ポイント"].sum()
                 .reset_index()
                 .sort_values("年月")
-                .copy()
             )
             monthly_points["前月比"] = monthly_points["ポイント"].diff()
             monthly_points["変化"] = monthly_points["前月比"].apply(lambda x: "↑" if x > 0 else ("↓" if x < 0 else "→"))
             monthly_points["バッジ"] = monthly_points["前月比"].apply(
                 lambda x: "🏅 成長" if x > 0 else ("💪 がんばろう" if x < 0 else "🟢 維持")
             )
-            monthly_points = monthly_points.rename(columns={"年月": "月", "ポイント": "合計ポイント"}).reset_index(drop=True)
+            monthly_points.rename(columns={"年月": "月", "ポイント": "合計ポイント"}, inplace=True)
             st.dataframe(monthly_points, use_container_width=True)
 
             if len(monthly_points) >= 2:
@@ -306,7 +322,7 @@ else:
                 else:
                     st.info("🟢 継続してがんばっています！")
 
-        # 🏠 施設ランキング（青ハイライト＋メダル）
+        # 🏠 施設別ランキング
         st.subheader("🏠 グループホーム別ランキング（月ごと）")
         if os.path.exists(USER_FILE) and not df.empty:
             df_all_users = pd.read_csv(USER_FILE)
