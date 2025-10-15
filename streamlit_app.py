@@ -233,7 +233,13 @@ elif staff_tab == "グループホーム別ランキング":
             df_month = df_rank[df_rank["年月"] == selected_month]
 
             # --- 施設選択 ---
-            merged = pd.merge(df_month, df_all_users[["氏名", "施設"]], left_on="利用者名", right_on="氏名", how="left")
+            merged = pd.merge(
+                df_month,
+                df_all_users[["氏名", "施設"]],
+                left_on="利用者名",
+                right_on="氏名",
+                how="left"
+            )
             facility_list = ["すべて"] + sorted(merged["施設"].dropna().unique().tolist())
             selected_facility = st.selectbox("施設を選択（またはすべて）", facility_list)
 
@@ -241,9 +247,12 @@ elif staff_tab == "グループホーム別ランキング":
             if selected_facility != "すべて":
                 merged = merged[merged["施設"] == selected_facility]
 
-            # --- 集計処理 ---
+            # --- 集計処理（施設別） ---
             df_home = (
-                merged.groupby("施設", dropna=False)["ポイント"].sum().reset_index().fillna({"施設": "（未登録）"})
+                merged.groupby("施設", dropna=False)["ポイント"]
+                .sum()
+                .reset_index()
+                .fillna({"施設": "（未登録）"})
             )
             df_home = df_home.sort_values("ポイント", ascending=False)
             df_home["順位"] = range(1, len(df_home) + 1)
@@ -257,7 +266,9 @@ elif staff_tab == "グループホーム別ランキング":
             # --- 利用者別ランキング（施設単位） ---
             st.markdown("### 👥 利用者別ランキング")
             df_user_rank = (
-                merged.groupby(["利用者名", "施設"], dropna=False)["ポイント"].sum().reset_index()
+                merged.groupby(["利用者名", "施設"], dropna=False)["ポイント"]
+                .sum()
+                .reset_index()
             )
             if selected_facility != "すべて":
                 df_user_rank = df_user_rank[df_user_rank["施設"] == selected_facility]
@@ -267,8 +278,10 @@ elif staff_tab == "グループホーム別ランキング":
                 lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x)
             )
 
-            st.dataframe(df_user_rank[["順位表示", "利用者名", "施設", "ポイント"]], use_container_width=True)
-
+            st.dataframe(
+                df_user_rank[["順位表示", "利用者名", "施設", "ポイント"]],
+                use_container_width=True
+            )
         else:
             st.info("月別データがありません。")
         
