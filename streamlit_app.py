@@ -372,7 +372,19 @@ else:
     st.title("🧍‍♀️ 利用者モード")
     df = load_data()
 
-    # --- ログイン ---
+    # =========================================================
+    # 汎用表示関数（Styler含めインデックス非表示）
+    # =========================================================
+    def show_table(df):
+        import pandas as pd
+        if isinstance(df, pd.io.formats.style.Styler):
+            st.dataframe(df.data.reset_index(drop=True), use_container_width=True, hide_index=True)
+        else:
+            st.dataframe(df.reset_index(drop=True), use_container_width=True, hide_index=True)
+
+    # =========================================================
+    # ログイン処理
+    # =========================================================
     if not st.session_state.get("user_logged_in"):
         last_name = st.text_input("姓（例：田中）")
         first_name = st.text_input("名（例：太郎）")
@@ -397,7 +409,9 @@ else:
             else:
                 st.error("登録されていない利用者です。職員に確認してください。")
 
-    # --- ログイン後 ---
+    # =========================================================
+    # ログイン後
+    # =========================================================
     else:
         user_name = st.session_state["user_name"]
         st.sidebar.success(f"✅ ログイン中：{user_name}")
@@ -428,12 +442,7 @@ else:
         else:
             df_view = df_user_points[["日付", "項目", "ポイント", "コメント"]].copy()
             df_view.rename(columns={"コメント": "AIからのメッセージ"}, inplace=True)
-            st.dataframe(
-                df_view.sort_values("日付", ascending=False)
-                .reset_index(drop=True)
-                .style.hide(axis="index"),
-                use_container_width=True
-            )
+            show_table(df_view.sort_values("日付", ascending=False))
 
         # 📅 月ごとのがんばり
         st.subheader("📅 あなたの月ごとのがんばり")
@@ -449,10 +458,7 @@ else:
                 lambda x: "🏅 成長" if x > 0 else ("💪 がんばろう" if x < 0 else "🟢 維持")
             )
             monthly_points.rename(columns={"年月": "月", "ポイント": "合計ポイント"}, inplace=True)
-            st.dataframe(
-                monthly_points.reset_index(drop=True).style.hide(axis="index"),
-                use_container_width=True
-            )
+            show_table(monthly_points)
 
         # 🏠 グループホーム別ランキング（月ごと）
         st.subheader("🏠 グループホーム別ランキング（月ごと）")
@@ -476,13 +482,7 @@ else:
                         return ['background-color: #d2e3fc'] * len(row)
                     return [''] * len(row)
 
-                st.dataframe(
-                    df_home[["順位表示", "施設", "ポイント"]]
-                    .reset_index(drop=True)
-                    .style.apply(hl, axis=1)
-                    .hide(axis="index"),
-                    use_container_width=True
-                )
+                show_table(df_home[["順位表示", "施設", "ポイント"]].style.apply(hl, axis=1))
 
         # 👥 月別利用者ランキング（上位10名）
         st.subheader("👥 月別利用者ランキング（上位10名）")
@@ -504,12 +504,7 @@ else:
                         return ['background-color: #d2e3fc'] * len(row)
                     return [''] * len(row)
 
-                st.dataframe(
-                    df_user_rank[["順位表示", "利用者名", "施設", "ポイント"]]
-                    .style.apply(hl_user, axis=1)
-                    .hide(axis="index"),
-                    use_container_width=True
-                )
+                show_table(df_user_rank[["順位表示", "利用者名", "施設", "ポイント"]].style.apply(hl_user, axis=1))
 
         # 🏅 累計利用者ランキング（上位10名）
         st.subheader("🏅 累計利用者ランキング（全期間 上位10名）")
@@ -525,12 +520,7 @@ else:
                     return ['background-color: #d2e3fc'] * len(row)
                 return [''] * len(row)
 
-            st.dataframe(
-                df_total[["順位表示", "利用者名", "施設", "ポイント"]]
-                .style.apply(hl_total, axis=1)
-                .hide(axis="index"),
-                use_container_width=True
-            )
+            show_table(df_total[["順位表示", "利用者名", "施設", "ポイント"]].style.apply(hl_total, axis=1))
 
         # 🚪 ログアウト
         st.sidebar.button("🚪 ログアウト", on_click=lambda: (st.session_state.clear(), st.rerun()))
