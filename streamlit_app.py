@@ -262,14 +262,41 @@ if mode == "職員モード":
                     if selected_facility != "すべて":
                         merged = merged[merged["施設"] == selected_facility]
 
-                    # 施設別集計
-                    df_home = merged.groupby("施設", dropna=False)["ポイント"].sum().reset_index().fillna({"施設": "（未登録）"})
-                    df_home = df_home.sort_values("ポイント", ascending=False).reset_index(drop=True)
-                    df_home["順位"] = range(1, len(df_home) + 1)
-                    df_home["順位表示"] = df_home["順位"].apply(
-                        lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x))
-                    st.markdown("### 🏠 施設別合計ポイント")
-                    show_table(df_home[["順位表示", "施設", "ポイント"]])
+                    # =========================================================
+                    # 施設別ランキング：合計ポイント＆1人あたりポイント
+                    # =========================================================
+
+                    # --- 合計ポイント ---
+                    df_home_total = merged.groupby("施設", dropna=False)["ポイント"].sum().reset_index().fillna({"施設": "（未登録）"})
+                    df_home_total = df_home_total.sort_values("ポイント", ascending=False).reset_index(drop=True)
+                    df_home_total["順位"] = range(1, len(df_home_total) + 1)
+                    df_home_total["順位表示"] = df_home_total["順位"].apply(
+                        lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x)
+                    )
+
+                    st.markdown("### 🏠 施設別ランキング（合計ポイント）")
+                    show_table(df_home_total[["順位表示", "施設", "ポイント"]])
+
+                    # --- 1人あたり平均ポイント ---
+                    df_fac_users = df_all_users.groupby("施設")["氏名"].nunique().reset_index()
+                    df_fac_users.rename(columns={"氏名": "利用者数"}, inplace=True)
+
+                    df_home_avg = pd.merge(df_home_total, df_fac_users, on="施設", how="left")
+                    df_home_avg["利用者数"] = df_home_avg["利用者数"].fillna(0).astype(int)
+                    df_home_avg["1人あたりポイント"] = df_home_avg.apply(
+                        lambda x: 0 if x["利用者数"] == 0 else round(x["ポイント"] / x["利用者数"], 1),
+                        axis=1
+                    )
+
+                    df_home_avg = df_home_avg.sort_values("1人あたりポイント", ascending=False).reset_index(drop=True)
+                    df_home_avg["順位"] = range(1, len(df_home_avg) + 1)
+                    df_home_avg["順位表示"] = df_home_avg["順位"].apply(
+                        lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x)
+                    )
+
+                    st.markdown("### 🧮 施設別ランキング（1人あたり平均ポイント）")
+                    show_table(df_home_avg[["順位表示", "施設", "1人あたりポイント"]])
+
 
                     # 利用者別集計
                     df_user_rank = merged.groupby(["利用者名", "施設"], dropna=False)["ポイント"].sum().reset_index()
