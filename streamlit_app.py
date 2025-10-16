@@ -60,6 +60,13 @@ def read_facility_list():
         return pd.read_csv(FACILITY_FILE)
     return pd.DataFrame(columns=["施設名"])
 
+def show_df(df_or_styler):
+    st.dataframe(df_or_styler, use_container_width=True, hide_index=True)
+
+def edit_df(df):
+    return st.data_editor(df, use_container_width=True, hide_index=True)
+
+
 # ===============================
 # AIコメント生成（本人＋項目限定）
 # ===============================
@@ -103,7 +110,7 @@ mode = st.sidebar.radio("モードを選択", ["利用者モード", "職員モ�
 # 職員モード
 # =========================================================
 if mode == "職員モード":
-    st.title("👩‍💼 職員モード")
+    st.title("📝 職員モード")
 
     if "staff_logged_in" not in st.session_state:
         st.session_state["staff_logged_in"] = False
@@ -211,7 +218,7 @@ if mode == "職員モード":
 
         # --- グループホーム別ランキング（月・施設別） ---
         elif staff_tab == "グループホーム別ランキング":
-            st.subheader("🏠 グループホーム別ランキング（月・施設別）")
+            st.subheader("🏆 グループホーム別ランキング（月・施設別）")
             if df.empty:
                 st.info("まだポイントデータがありません。")
             else:
@@ -246,7 +253,7 @@ if mode == "職員モード":
                     df_user_rank = df_user_rank.sort_values("ポイント", ascending=False).head(10).reset_index(drop=True)
                     df_user_rank["順位"] = range(1, len(df_user_rank) + 1)
                     df_user_rank["順位表示"] = df_user_rank["順位"].apply(lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x))
-                    st.markdown("### 👥 利用者別ランキング（上位10名）")
+                    st.markdown("### 🏅 利用者別ランキング（上位10名）")
                     st.dataframe(
                         df_user_rank[["順位表示", "利用者名", "施設", "ポイント"]]
                         .style.hide(axis="index"),
@@ -255,7 +262,7 @@ if mode == "職員モード":
 
         # --- 累計利用者ランキング ---
         elif staff_tab == "累計利用者ランキング":
-            st.subheader("🏅 累計利用者ランキング（全期間 上位10名）")
+            st.subheader("👑 累計利用者ランキング（全期間 上位10名）")
             if df.empty:
                 st.info("データがありません。")
             else:
@@ -273,7 +280,7 @@ if mode == "職員モード":
 
         # --- 利用者登録 ---
         if staff_tab == "利用者登録" and is_admin:
-            st.subheader("🧍‍♀️ 利用者登録")
+            st.subheader("👫 利用者登録")
             df_fac = read_facility_list()
             facilities = df_fac["施設名"].tolist() if not df_fac.empty else []
             with st.form("user_form"):
@@ -421,7 +428,7 @@ else:
         else:
             df_view = df_user_points[["日付", "項目", "ポイント", "コメント"]].copy()
             df_view.rename(columns={"コメント": "AIからのメッセージ"}, inplace=True)
-            st.dataframe(
+            show_df(
                 df_view.sort_values("日付", ascending=False)
                 .reset_index(drop=True)
                 .style.hide(axis="index"),
