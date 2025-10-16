@@ -428,7 +428,7 @@ else:
         else:
             df_view = df_user_points[["日付", "項目", "ポイント", "コメント"]].copy()
             df_view.rename(columns={"コメント": "AIからのメッセージ"}, inplace=True)
-            show_df(
+            st.dataframe(
                 df_view.sort_values("日付", ascending=False)
                 .reset_index(drop=True)
                 .style.hide(axis="index"),
