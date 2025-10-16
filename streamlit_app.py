@@ -527,7 +527,7 @@ else:
             show_table(monthly_points)
 
         # 🏠 施設別ランキング（月ごと）
-        st.subheader("🏠 グルホランキング（月ごと）")
+        st.subheader("🏠 グルホランキング")
 
         if os.path.exists(USER_FILE) and not df.empty:
             df_all_users = read_user_list()
@@ -581,7 +581,7 @@ else:
                         return ['background-color: #d2e3fc'] * len(row)
                     return [''] * len(row)
 
-                st.markdown("### 🧮 1人あたりウェルサポイント")
+                st.markdown("### 🧮1人あたりウェルサポイント")
                 show_table(df_home_avg[["順位表示", "施設", "1人あたりポイント"]].style.apply(hl_fac_avg, axis=1))
 
             else:
