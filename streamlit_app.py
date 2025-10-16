@@ -497,6 +497,7 @@ else:
                         f"<h4>💬 最近のありがとう</h4><p>{last_comment}</p></div>",
                         unsafe_allow_html=True
                     )
+                    # 行間（余白）を追加
                     st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
 
         # 💎 あなたのありがとう履歴
@@ -525,7 +526,7 @@ else:
             show_table(monthly_points)
 
         # 🏠 施設別ランキング（月ごと）
-        st.subheader("🏠 グルホランキング（月ごと）")
+        st.subheader("🏠 グルホランキング（月別）")
 
         if os.path.exists(USER_FILE) and not df.empty:
             df_all_users = read_user_list()
@@ -537,9 +538,11 @@ else:
                 df_month = df_rank[df_rank["年月"] == selected_month]
                 merged = pd.merge(df_month, df_all_users[["氏名", "施設"]], left_on="利用者名", right_on="氏名", how="left")
 
-                # =========================================================
+                # 自施設名（ハイライト用）を取得
+                user_fac_series = df_all_users.loc[df_all_users["氏名"] == user_name, "施設"]
+                user_fac = user_fac_series.iloc[0] if not user_fac_series.empty else None
+
                 # 施設別ランキング（合計ポイント）
-                # =========================================================
                 df_home_total = merged.groupby("施設", dropna=False)["ポイント"].sum().reset_index().fillna({"施設": "（未登録）"})
                 df_home_total = df_home_total.sort_values("ポイント", ascending=False).reset_index(drop=True)
                 df_home_total["順位"] = range(1, len(df_home_total) + 1)
@@ -547,12 +550,15 @@ else:
                     lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x)
                 )
 
-                st.markdown("### 🏆 合計ウェルサポイント")
-                show_table(df_home_total[["順位表示", "施設", "ポイント"]])
+                def hl_fac_total(row):
+                    if user_fac is not None and row["施設"] == user_fac:
+                        return ['background-color: #d2e3fc'] * len(row)
+                    return [''] * len(row)
 
-                # =========================================================
+                st.markdown("### 🏆 合計ウェルサポイント")
+                show_table(df_home_total[["順位表示", "施設", "ポイント"]].style.apply(hl_fac_total, axis=1))
+
                 # 施設別ランキング（1人あたり平均ポイント）
-                # =========================================================
                 df_fac_users = df_all_users.groupby("施設")["氏名"].nunique().reset_index()
                 df_fac_users.rename(columns={"氏名": "利用者数"}, inplace=True)
 
@@ -569,12 +575,16 @@ else:
                     lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x)
                 )
 
+                def hl_fac_avg(row):
+                    if user_fac is not None and row["施設"] == user_fac:
+                        return ['background-color: #d2e3fc'] * len(row)
+                    return [''] * len(row)
+
                 st.markdown("### 🧮 1人あたりウェルサポイント")
-                show_table(df_home_avg[["順位表示", "施設", "1人あたりポイント"]])
+                show_table(df_home_avg[["順位表示", "施設", "1人あたりポイント"]].style.apply(hl_fac_avg, axis=1))
 
             else:
                 st.info("月別データがありません。")
-
 
         # 👥 月別利用者ランキング（上位10名）
         st.subheader("🏅 月別利用者ランキング")
