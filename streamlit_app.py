@@ -110,7 +110,7 @@ mode = st.sidebar.radio("モードを選択", ["利用者モード", "職員モ�
 # 職員モード
 # =========================================================
 if mode == "職員モード":
-    st.title("👩‍💼 職員モード")
+    st.title("📝 職員モード")
 
     # =========================================================
     # 共通表示関数（Styler対応・インデックス非表示）
@@ -242,8 +242,8 @@ if mode == "職員モード":
         # =========================================================
         # グループホーム別ランキング（月・施設別）
         # =========================================================
-        elif staff_tab == "グループホーム別ランキング":
-            st.subheader("🏠 グループホーム別ランキング（月・施設別）")
+        elif staff_tab == "月次ランキング":
+            st.subheader("🏆 グループホームランキング（月・施設別）")
             if df.empty:
                 st.info("まだポイントデータがありません。")
             else:
@@ -284,7 +284,7 @@ if mode == "職員モード":
         # 累計利用者ランキング
         # =========================================================
         elif staff_tab == "累計利用者ランキング":
-            st.subheader("🏅 累計利用者ランキング（全期間 上位10名）")
+            st.subheader("👑 累計利用者ランキング")
             if df.empty:
                 st.info("データがありません。")
             else:
@@ -302,7 +302,7 @@ if mode == "職員モード":
         # 管理者限定：利用者登録
         # =========================================================
         if staff_tab == "利用者登録" and is_admin:
-            st.subheader("🧍‍♀️ 利用者登録")
+            st.subheader("👫 利用者登録")
             df_fac = read_facility_list()
             facilities = df_fac["施設名"].tolist() if not df_fac.empty else []
             with st.form("user_form"):
@@ -407,7 +407,7 @@ else:
     if st.session_state.get("user_logged_in"):
         user_name = st.session_state["user_name"]
         st.markdown(
-            f"<h2 style='margin-top: 5px;'>ようこそ、{user_name} さん</h2>",
+            f"<h2 style='margin-top: 5px;'>🔔 {user_name} さん</h2>",
             unsafe_allow_html=True
         )
     else:
@@ -480,16 +480,16 @@ else:
                     st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
 
         # 💎 あなたのありがとう履歴
-        st.subheader("💎 あなたのありがとう履歴")
+        st.subheader("💎 ウェルサポイント履歴")
         if df_user_points.empty:
             st.info("まだポイント履歴がありません。")
         else:
             df_view = df_user_points[["日付", "項目", "ポイント", "コメント"]].copy()
-            df_view.rename(columns={"コメント": "AIからのメッセージ"}, inplace=True)
+            df_view.rename(columns={"コメント": "メッセージ"}, inplace=True)
             show_table(df_view.sort_values("日付", ascending=False))
 
         # 📅 月ごとのがんばり
-        st.subheader("📅 あなたの月ごとのがんばり")
+        st.subheader("🌱 ウェルサポイント推移")
         if not df_user_points.empty:
             monthly_points = (
                 df_user_points.assign(年月=pd.to_datetime(df_user_points["日付"], errors="coerce").dt.to_period("M").astype(str))
@@ -505,7 +505,7 @@ else:
             show_table(monthly_points)
 
         # 🏠 グループホーム別ランキング（月ごと）
-        st.subheader("🏠 グループホーム別ランキング（月ごと）")
+        st.subheader("🏆 グループホームランキング")
         if os.path.exists(USER_FILE) and not df.empty:
             df_rank = df.copy()
             df_rank["年月"] = pd.to_datetime(df_rank["日付"], errors="coerce").dt.to_period("M").astype(str)
@@ -529,7 +529,7 @@ else:
                 show_table(df_home[["順位表示", "施設", "ポイント"]].style.apply(hl, axis=1))
 
         # 👥 月別利用者ランキング（上位10名）
-        st.subheader("👥 月別利用者ランキング（上位10名）")
+        st.subheader("🏅 月別利用者ランキング")
         if not df.empty:
             df_rank_user = df.copy()
             df_rank_user["年月"] = pd.to_datetime(df_rank_user["日付"], errors="coerce").dt.to_period("M").astype(str)
@@ -551,7 +551,7 @@ else:
                 show_table(df_user_rank[["順位表示", "利用者名", "施設", "ポイント"]].style.apply(hl_user, axis=1))
 
         # 🏅 累計利用者ランキング（上位10名）
-        st.subheader("🏅 累計利用者ランキング（全期間 上位10名）")
+        st.subheader("👑 累計利用者ランキング")
         if not df.empty:
             merged_total = pd.merge(df, df_all_users[["氏名", "施設"]], left_on="利用者名", right_on="氏名", how="left")
             df_total = merged_total.groupby(["利用者名", "施設"])["ポイント"].sum().reset_index()
