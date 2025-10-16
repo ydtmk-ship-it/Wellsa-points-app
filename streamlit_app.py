@@ -477,6 +477,7 @@ else:
                         f"<h4>💬 最近のありがとう</h4><p>{last_comment}</p></div>",
                         unsafe_allow_html=True
                     )
+                    st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
 
         # 💎 あなたのありがとう履歴
         st.subheader("💎 あなたのありがとう履歴")
