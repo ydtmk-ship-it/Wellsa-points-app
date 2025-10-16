@@ -415,8 +415,6 @@ if mode == "職員モード":
                         st.success("削除しました。")
                         st.rerun()
 
-
-
 # =========================================================
 # 利用者モード
 # =========================================================
@@ -438,12 +436,16 @@ else:
     # =========================================================
     # 汎用表示関数（Styler対応・インデックス非表示）
     # =========================================================
-    def show_table(df):
+    def show_table(tbl):
         import pandas as pd
-        if isinstance(df, pd.io.formats.style.Styler):
-            st.dataframe(df.data.reset_index(drop=True), use_container_width=True, hide_index=True)
+        if isinstance(tbl, pd.io.formats.style.Styler):
+            try:
+                tbl = tbl.hide_index()
+            except Exception:
+                pass
+            st.dataframe(tbl, use_container_width=True)
         else:
-            st.dataframe(df.reset_index(drop=True), use_container_width=True, hide_index=True)
+            st.dataframe(tbl.reset_index(drop=True), use_container_width=True, hide_index=True)
 
     # =========================================================
     # ログイン処理
@@ -497,7 +499,6 @@ else:
                         f"<h4>💬 最近のありがとう</h4><p>{last_comment}</p></div>",
                         unsafe_allow_html=True
                     )
-                    # 行間（余白）を追加
                     st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
 
         # 💎 あなたのありがとう履歴
@@ -526,7 +527,7 @@ else:
             show_table(monthly_points)
 
         # 🏠 施設別ランキング（月ごと）
-        st.subheader("🏠 グルホランキング（月別）")
+        st.subheader("🏠 グルホランキング（月ごと）")
 
         if os.path.exists(USER_FILE) and not df.empty:
             df_all_users = read_user_list()
@@ -599,7 +600,9 @@ else:
                 df_user_rank = merged_user.groupby(["利用者名", "施設"], dropna=False)["ポイント"].sum().reset_index()
                 df_user_rank = df_user_rank.sort_values("ポイント", ascending=False).head(10).reset_index(drop=True)
                 df_user_rank["順位"] = range(1, len(df_user_rank) + 1)
-                df_user_rank["順位表示"] = df_user_rank["順位"].apply(lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x))
+                df_user_rank["順位表示"] = df_user_rank["順位"].apply(
+                    lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x)
+                )
 
                 def hl_user(row):
                     if row["利用者名"] == user_name:
@@ -608,14 +611,16 @@ else:
 
                 show_table(df_user_rank[["順位表示", "利用者名", "施設", "ポイント"]].style.apply(hl_user, axis=1))
 
-        # 🏅 累計利用者ランキング（上位10名）
+        # 👑 累計利用者ランキング（上位10名）
         st.subheader("👑 累計利用者ランキング")
         if not df.empty:
             merged_total = pd.merge(df, df_all_users[["氏名", "施設"]], left_on="利用者名", right_on="氏名", how="left")
             df_total = merged_total.groupby(["利用者名", "施設"])["ポイント"].sum().reset_index()
             df_total = df_total.sort_values("ポイント", ascending=False).head(10).reset_index(drop=True)
             df_total["順位"] = range(1, len(df_total) + 1)
-            df_total["順位表示"] = df_total["順位"].apply(lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x))
+            df_total["順位表示"] = df_total["順位"].apply(
+                lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x)
+            )
 
             def hl_total(row):
                 if row["利用者名"] == user_name:
@@ -626,3 +631,5 @@ else:
 
         # 🚪 ログアウト
         st.sidebar.button("🚪 ログアウト", on_click=lambda: (st.session_state.clear(), st.rerun()))
+
+
