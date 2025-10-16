@@ -446,12 +446,11 @@ elif mode == "利用者モード":
                     tbl = tbl.hide_index()
                 except Exception:
                     pass
-            st.dataframe(tbl, use_container_width=True, height=None)
+            st.dataframe(tbl, use_container_width=True)
         else:
             st.dataframe(
                 tbl.reset_index(drop=True),
-                use_container_width=True,
-                height=None
+                use_container_width=True
             )
 
     # =========================================================
@@ -649,3 +648,4 @@ elif mode == "利用者モード":
 
         # 🚪 ログアウト
         st.sidebar.button("🚪 ログアウト", on_click=lambda: (st.session_state.clear(), st.rerun()))
+
