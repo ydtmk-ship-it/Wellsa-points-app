@@ -637,10 +637,12 @@ elif mode == "利用者モード":
 
         # 🚪 ログアウト
         st.sidebar.button("🚪 ログアウト", on_click=lambda: (st.session_state.clear(), st.rerun()))
+
+
 # =========================================================
 # 利用者モード
 # =========================================================
-else:
+elif mode == "利用者モード":
     # =========================================================
     # タイトル（ログイン状態によって動的に表示）
     # =========================================================
@@ -656,16 +658,14 @@ else:
     df = load_data()
 
     # =========================================================
-    # 表示関数（ハイライト保持＋インデックス完全非表示）
+    # 表示関数（全テーブル統一：非編集・インデックス非表示・ハイライト保持）
     # =========================================================
     def show_table(tbl):
         import pandas as pd
         if isinstance(tbl, pd.io.formats.style.Styler):
-            # StylerはHTMLで安全に表示（背景色維持＆インデックス非表示）
             html = tbl.to_html(index=False)
             st.markdown(f"<div style='overflow-x:auto'>{html}</div>", unsafe_allow_html=True)
         else:
-            # 通常のDataFrameは非編集テーブルとして表示
             st.data_editor(
                 tbl.reset_index(drop=True),
                 use_container_width=True,
@@ -754,7 +754,6 @@ else:
 
         # 🏠 施設別ランキング（月ごと）
         st.subheader("🏠 グルホランキング（月ごと）")
-
         if os.path.exists(USER_FILE) and not df.empty:
             df_all_users = read_user_list()
             df_rank = df.copy()
@@ -769,7 +768,7 @@ else:
                 user_fac_series = df_all_users.loc[df_all_users["氏名"] == user_name, "施設"]
                 user_fac = user_fac_series.iloc[0] if not user_fac_series.empty else None
 
-                # 施設別ランキング（合計ポイント）
+                # --- 合計ポイント ---
                 df_home_total = merged.groupby("施設", dropna=False)["ポイント"].sum().reset_index().fillna({"施設": "（未登録）"})
                 df_home_total = df_home_total.sort_values("ポイント", ascending=False).reset_index(drop=True)
                 df_home_total["順位"] = range(1, len(df_home_total) + 1)
@@ -785,7 +784,7 @@ else:
                 st.markdown("### 🏆 合計ウェルサポイント")
                 show_table(df_home_total[["順位表示", "施設", "ポイント"]].style.apply(hl_fac_total, axis=1))
 
-                # 施設別ランキング（1人あたり平均ポイント）
+                # --- 1人あたり平均ポイント ---
                 df_fac_users = df_all_users.groupby("施設")["氏名"].nunique().reset_index()
                 df_fac_users.rename(columns={"氏名": "利用者数"}, inplace=True)
 
@@ -809,10 +808,11 @@ else:
 
                 st.markdown("### 🧮 1人あたりウェルサポイント")
                 show_table(df_home_avg[["順位表示", "施設", "1人あたりポイント"]].style.apply(hl_fac_avg, axis=1))
+
             else:
                 st.info("月別データがありません。")
 
-        # 👥 月別利用者ランキング（上位10名）
+        # 👥 月別利用者ランキング
         st.subheader("🏅 月別利用者ランキング")
         if not df.empty:
             df_rank_user = df.copy()
@@ -837,7 +837,7 @@ else:
 
                 show_table(df_user_rank[["順位表示", "利用者名", "施設", "ポイント"]].style.apply(hl_user, axis=1))
 
-        # 👑 累計利用者ランキング（上位10名）
+        # 👑 累計利用者ランキング
         st.subheader("👑 累計利用者ランキング")
         if not df.empty:
             merged_total = pd.merge(df, df_all_users[["氏名", "施設"]],
@@ -854,7 +854,7 @@ else:
                     return ['background-color: #d2e3fc'] * len(row)
                 return [''] * len(row)
 
-            show_table(df_total[["順位", "利用者名", "施設", "ポイント"]].style.apply(hl_total, axis=1))
+            show_table(df_total[["順位表示", "利用者名", "施設", "ポイント"]].style.apply(hl_total, axis=1))
 
         # 🚪 ログアウト
         st.sidebar.button("🚪 ログアウト", on_click=lambda: (st.session_state.clear(), st.rerun()))
