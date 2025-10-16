@@ -402,13 +402,13 @@ if mode == "職員モード":
 # =========================================================
 else:
     # =========================================================
-    # ロゴ表示＋タイトル（ロゴは小さめ）
+    # ロゴ表示＋タイトル（ロゴは小サイズでタイトル横に）
     # =========================================================
     if st.session_state.get("user_logged_in"):
         user_name = st.session_state["user_name"]
         col1, col2 = st.columns([0.1, 1])
         with col1:
-            st.image("Wellsapo_Logo_Portrait.png", width=45)  # ロゴ小サイズ
+            st.image("Wellsapo_Logo_Portrait.png", width=45)
         with col2:
             st.markdown(
                 f"<h2 style='margin-top: 5px;'>ようこそ、{user_name} さん</h2>",
