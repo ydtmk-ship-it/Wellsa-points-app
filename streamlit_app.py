@@ -173,10 +173,10 @@ if mode == "職員モード":
 
         # 管理者は全機能表示
         staff_tab_list = (
-            ["ポイント付与", "履歴閲覧", "グループホーム別ランキング", "累計利用者ランキング",
+            ["ポイント付与", "履歴閲覧", "月次ランキング", "累計利用者ランキング",
              "利用者登録", "活動項目設定", "施設設定"]
             if is_admin
-            else ["ポイント付与", "履歴閲覧", "グループホーム別ランキング", "累計利用者ランキング"]
+            else ["ポイント付与", "履歴閲覧", "月次ランキング", "累計利用者ランキング"]
         )
 
         staff_tab = st.sidebar.radio("機能を選択", staff_tab_list)
@@ -240,10 +240,10 @@ if mode == "職員モード":
                     st.info("該当する履歴がありません。")
 
         # =========================================================
-        # グループホーム別ランキング（月・施設別）
+        # 月次ランキング（月・施設別）
         # =========================================================
         elif staff_tab == "月次ランキング":
-            st.subheader("🏆 グループホームランキング（月・施設別）")
+            st.subheader("🏆 月次ランキング（月・施設別）")
             if df.empty:
                 st.info("まだポイントデータがありません。")
             else:
@@ -318,83 +318,6 @@ if mode == "職員モード":
                 df_user.to_csv(USER_FILE, index=False, encoding="utf-8-sig")
                 st.success(f"{full_name}（{facility}）を登録しました。")
                 st.rerun()
-
-            if os.path.exists(USER_FILE):
-                df_user = read_user_list()
-                if not df_user.empty:
-                    df_user["削除"] = False
-                    edited = st.data_editor(df_user, use_container_width=True, hide_index=True)
-                    delete_targets = edited[edited["削除"]]
-                    if st.button("チェックした利用者を削除"):
-                        df_user = df_user.drop(delete_targets.index)
-                        df_user.to_csv(USER_FILE, index=False, encoding="utf-8-sig")
-                        st.success("削除しました。")
-                        st.rerun()
-
-        # =========================================================
-        # 管理者限定：活動項目設定
-        # =========================================================
-        if staff_tab == "活動項目設定" and is_admin:
-            st.subheader("🧩 活動項目設定")
-            with st.form("item_form"):
-                item_name = st.text_input("活動項目名")
-                point_value = st.number_input("ポイント数", min_value=1, step=1)
-                submitted = st.form_submit_button("登録")
-            if submitted and item_name:
-                df_item = read_item_list()
-                df_item = pd.concat([df_item, pd.DataFrame([{"項目": item_name, "ポイント": point_value}])],
-                                    ignore_index=True)
-                df_item.to_csv(ITEM_FILE, index=False, encoding="utf-8-sig")
-                st.success(f"{item_name} を登録しました。")
-                st.rerun()
-
-            if os.path.exists(ITEM_FILE):
-                df_item = read_item_list()
-                if not df_item.empty:
-                    df_item["削除"] = False
-                    edited = st.data_editor(df_item, use_container_width=True, hide_index=True)
-                    delete_targets = edited[edited["削除"]]
-                    if st.button("チェックした項目を削除"):
-                        df_item = df_item.drop(delete_targets.index)
-                        df_item.to_csv(ITEM_FILE, index=False, encoding="utf-8-sig")
-                        st.success("削除しました。")
-                        st.rerun()
-
-        # =========================================================
-        # 管理者限定：施設設定
-        # =========================================================
-        if staff_tab == "施設設定" and is_admin:
-            st.subheader("🏠 グループホーム設定")
-            with st.form("fac_form"):
-                name = st.text_input("グループホーム名")
-                submitted = st.form_submit_button("登録")
-            if submitted and name:
-                df_fac = read_facility_list()
-                df_fac = pd.concat([df_fac, pd.DataFrame([{"施設名": name}])],
-                                   ignore_index=True)
-                df_fac.to_csv(FACILITY_FILE, index=False, encoding="utf-8-sig")
-                st.success(f"{name} を登録しました。")
-                st.rerun()
-
-            if os.path.exists(FACILITY_FILE):
-                df_fac = read_facility_list()
-                if not df_fac.empty:
-                    df_fac["削除"] = False
-                    edited = st.data_editor(df_fac, use_container_width=True, hide_index=True)
-                    delete_targets = edited[edited["削除"]]
-                    if st.button("チェックした施設を削除"):
-                        df_fac = df_fac.drop(delete_targets.index)
-                        df_fac.to_csv(FACILITY_FILE, index=False, encoding="utf-8-sig")
-                        st.success("削除しました。")
-                        st.rerun()
-
-        # =========================================================
-        # ログアウトボタン
-        # =========================================================
-        if st.button("🚪 ログアウト"):
-            st.session_state["staff_logged_in"] = False
-            st.session_state["is_admin"] = False
-            st.rerun()
 
 
 # =========================================================
