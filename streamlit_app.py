@@ -434,22 +434,10 @@ elif mode == "利用者モード":
     df = load_data()
 
     # =========================================================
-    # 共通テーブル表示（HTML統一：非編集・幅統一・インデックス非表示・ハイライト維持）
+    # 表示関数（全テーブル統一：非編集・インデックス非表示・ハイライト保持）
     # =========================================================
     def show_table(tbl):
         import pandas as pd
-
-        # 共通CSS（全テーブルに統一感を出す）
-        css = """
-        <style>
-        .ws-wrap { overflow-x: auto; }
-        .ws-wrap table { width: 100%; border-collapse: collapse; table-layout: auto; }
-        .ws-wrap thead th { background: #f8f9fb; position: sticky; top: 0; z-index: 1; }
-        .ws-wrap th, .ws-wrap td { padding: 8px 10px; border-bottom: 1px solid #eee; text-align: left; }
-        </style>
-        """
-
-        # Styler（ハイライトあり）は index を確実に隠して HTML 化
         if isinstance(tbl, pd.io.formats.style.Styler):
             try:
                 tbl = tbl.hide(axis="index")
@@ -458,12 +446,13 @@ elif mode == "利用者モード":
                     tbl = tbl.hide_index()
                 except Exception:
                     pass
-            html = tbl.to_html()
+            st.dataframe(tbl, use_container_width=True, height=None)
         else:
-            # DataFrame は index を落として HTML 化
-            html = tbl.reset_index(drop=True).to_html(index=False, border=0)
-
-        st.markdown(css + f"<div class='ws-wrap'>{html}</div>", unsafe_allow_html=True)
+            st.dataframe(
+                tbl.reset_index(drop=True),
+                use_container_width=True,
+                height=None
+            )
 
     # =========================================================
     # ログイン処理
@@ -517,10 +506,9 @@ elif mode == "利用者モード":
                         f"<h4>💬 最近のありがとう</h4><p>{last_comment}</p></div>",
                         unsafe_allow_html=True
                     )
-                    # タイトルとの行間
                     st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
 
-        # 💎 あなたのありがとう履歴（ランキングと同じ形式に統一）
+        # 💎 あなたのありがとう履歴
         st.subheader("💎 ウェルサポイント履歴")
         if df_user_points.empty:
             st.info("まだポイント履歴がありません。")
@@ -529,7 +517,7 @@ elif mode == "利用者モード":
             df_view.rename(columns={"コメント": "メッセージ"}, inplace=True)
             show_table(df_view.sort_values("日付", ascending=False))
 
-        # 🌱 月ごとのがんばり（ランキングと同じ形式に統一）
+        # 🌱 月ごとのがんばり
         st.subheader("🌱 ウェルサポイント推移")
         if not df_user_points.empty:
             monthly_points = (
@@ -560,7 +548,7 @@ elif mode == "利用者モード":
                     left_on="利用者名", right_on="氏名", how="left"
                 )
 
-                # 自施設名（ハイライト用）を取得
+                # 自施設名（ハイライト用）
                 user_fac_series = df_all_users.loc[df_all_users["氏名"] == user_name, "施設"]
                 user_fac = user_fac_series.iloc[0] if not user_fac_series.empty else None
 
@@ -577,14 +565,12 @@ elif mode == "利用者モード":
                 )
 
                 def hl_fac_total(row):
-                    if user_fac is not None and row["施設"] == user_fac:
+                    if user_fac and row["施設"] == user_fac:
                         return ['background-color: #d2e3fc'] * len(row)
                     return [''] * len(row)
 
                 st.markdown("### 🏆 合計ウェルサポイント")
-                show_table(
-                    df_home_total[["順位表示", "施設", "ポイント"]].style.apply(hl_fac_total, axis=1)
-                )
+                show_table(df_home_total[["順位表示", "施設", "ポイント"]].style.apply(hl_fac_total, axis=1))
 
                 # --- 1人あたり平均ポイント ---
                 df_fac_users = df_all_users.groupby("施設")["氏名"].nunique().reset_index()
@@ -596,29 +582,24 @@ elif mode == "利用者モード":
                     lambda x: 0 if x["利用者数"] == 0 else round(x["ポイント"] / x["利用者数"], 1),
                     axis=1
                 )
-                df_home_avg = (
-                    df_home_avg.sort_values("1人あたりポイント", ascending=False)
-                    .reset_index(drop=True)
-                )
+                df_home_avg = df_home_avg.sort_values("1人あたりポイント", ascending=False).reset_index(drop=True)
                 df_home_avg["順位"] = range(1, len(df_home_avg) + 1)
                 df_home_avg["順位表示"] = df_home_avg["順位"].apply(
                     lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x)
                 )
 
                 def hl_fac_avg(row):
-                    if user_fac is not None and row["施設"] == user_fac:
+                    if user_fac and row["施設"] == user_fac:
                         return ['background-color: #d2e3fc'] * len(row)
                     return [''] * len(row)
 
                 st.markdown("### 🧮 1人あたりウェルサポイント")
-                show_table(
-                    df_home_avg[["順位表示", "施設", "1人あたりポイント"]].style.apply(hl_fac_avg, axis=1)
-                )
+                show_table(df_home_avg[["順位表示", "施設", "1人あたりポイント"]].style.apply(hl_fac_avg, axis=1))
 
             else:
                 st.info("月別データがありません。")
 
-        # 👥 月別利用者ランキング（上位10名）
+        # 👥 月別利用者ランキング
         st.subheader("🏅 月別利用者ランキング")
         if not df.empty:
             df_rank_user = df.copy()
@@ -643,11 +624,9 @@ elif mode == "利用者モード":
                         return ['background-color: #d2e3fc'] * len(row)
                     return [''] * len(row)
 
-                show_table(
-                    df_user_rank[["順位表示", "利用者名", "施設", "ポイント"]].style.apply(hl_user, axis=1)
-                )
+                show_table(df_user_rank[["順位表示", "利用者名", "施設", "ポイント"]].style.apply(hl_user, axis=1))
 
-        # 👑 累計利用者ランキング（上位10名）
+        # 👑 累計利用者ランキング
         st.subheader("👑 累計利用者ランキング")
         if not df.empty:
             merged_total = pd.merge(
@@ -666,10 +645,7 @@ elif mode == "利用者モード":
                     return ['background-color: #d2e3fc'] * len(row)
                 return [''] * len(row)
 
-            show_table(
-                df_total[["順位表示", "利用者名", "施設", "ポイント"]].style.apply(hl_total, axis=1)
-            )
+            show_table(df_total[["順位表示", "利用者名", "施設", "ポイント"]].style.apply(hl_total, axis=1))
 
         # 🚪 ログアウト
         st.sidebar.button("🚪 ログアウト", on_click=lambda: (st.session_state.clear(), st.rerun()))
-
