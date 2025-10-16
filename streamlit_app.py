@@ -202,7 +202,8 @@ if mode == "職員モード":
                     df_view.rename(columns={"コメント": "AIコメント"}, inplace=True)
                     st.dataframe(
                         df_view[["日付", "利用者名", "項目", "ポイント", "所属部署", "AIコメント"]]
-                        .reset_index(drop=True),
+                        .reset_index(drop=True)
+                        .style.hide(axis="index"),
                         use_container_width=True
                     )
                 else:
@@ -227,25 +228,28 @@ if mode == "職員モード":
                     if selected_facility != "すべて":
                         merged = merged[merged["施設"] == selected_facility]
 
-                    # 施設別集計
+                    # 施設別
                     df_home = merged.groupby("施設", dropna=False)["ポイント"].sum().reset_index().fillna({"施設": "（未登録）"})
                     df_home = df_home.sort_values("ポイント", ascending=False).reset_index(drop=True)
                     df_home["順位"] = range(1, len(df_home) + 1)
                     df_home["順位表示"] = df_home["順位"].apply(lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x))
                     st.markdown("### 🏠 施設別合計ポイント")
                     st.dataframe(
-                        df_home[["順位表示", "施設", "ポイント"]].reset_index(drop=True),
+                        df_home[["順位表示", "施設", "ポイント"]]
+                        .reset_index(drop=True)
+                        .style.hide(axis="index"),
                         use_container_width=True
                     )
 
                     # 利用者別（施設含む）
                     df_user_rank = merged.groupby(["利用者名", "施設"], dropna=False)["ポイント"].sum().reset_index()
-                    df_user_rank = df_user_rank.sort_values("ポイント", ascending=False).reset_index(drop=True).head(10)
+                    df_user_rank = df_user_rank.sort_values("ポイント", ascending=False).head(10).reset_index(drop=True)
                     df_user_rank["順位"] = range(1, len(df_user_rank) + 1)
                     df_user_rank["順位表示"] = df_user_rank["順位"].apply(lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x))
                     st.markdown("### 👥 利用者別ランキング（上位10名）")
                     st.dataframe(
-                        df_user_rank[["順位表示", "利用者名", "施設", "ポイント"]].reset_index(drop=True),
+                        df_user_rank[["順位表示", "利用者名", "施設", "ポイント"]]
+                        .style.hide(axis="index"),
                         use_container_width=True
                     )
 
@@ -258,15 +262,16 @@ if mode == "職員モード":
                 df_all_users = read_user_list()
                 total_rank = pd.merge(df, df_all_users[["氏名", "施設"]], left_on="利用者名", right_on="氏名", how="left")
                 total_rank = total_rank.groupby(["利用者名", "施設"])["ポイント"].sum().reset_index()
-                total_rank = total_rank.sort_values("ポイント", ascending=False).reset_index(drop=True).head(10)
+                total_rank = total_rank.sort_values("ポイント", ascending=False).head(10).reset_index(drop=True)
                 total_rank["順位"] = range(1, len(total_rank) + 1)
                 total_rank["順位表示"] = total_rank["順位"].apply(lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x))
                 st.dataframe(
-                    total_rank[["順位表示", "利用者名", "施設", "ポイント"]].reset_index(drop=True),
+                    total_rank[["順位表示", "利用者名", "施設", "ポイント"]]
+                    .style.hide(axis="index"),
                     use_container_width=True
                 )
 
-        # --- 利用者登録（管理者のみ） ---
+        # --- 利用者登録 ---
         if staff_tab == "利用者登録" and is_admin:
             st.subheader("🧍‍♀️ 利用者登録")
             df_fac = read_facility_list()
@@ -296,7 +301,7 @@ if mode == "職員モード":
                         st.success("削除しました。")
                         st.rerun()
 
-        # --- 活動項目設定（管理者のみ） ---
+        # --- 活動項目設定 ---
         if staff_tab == "活動項目設定" and is_admin:
             st.subheader("🧩 活動項目設定")
             with st.form("item_form"):
@@ -321,7 +326,7 @@ if mode == "職員モード":
                         st.success("削除しました。")
                         st.rerun()
 
-        # --- 施設設定（管理者のみ） ---
+        # --- 施設設定 ---
         if staff_tab == "施設設定" and is_admin:
             st.subheader("🏠 グループホーム設定")
             with st.form("fac_form"):
@@ -352,6 +357,7 @@ if mode == "職員モード":
             st.rerun()
 
 
+
 # =========================================================
 # 利用者モード
 # =========================================================
@@ -363,6 +369,7 @@ else:
     if not st.session_state.get("user_logged_in"):
         last_name = st.text_input("姓（例：田中）")
         first_name = st.text_input("名（例：太郎）")
+
         if st.button("ログイン"):
             chosen = None
             if last_name or first_name:
@@ -373,6 +380,7 @@ else:
                     mask = df_user["clean_name"] == clean_name(typed_full)
                     if mask.any():
                         chosen = df_user.loc[mask, "氏名"].iloc[0]
+
             if chosen:
                 st.session_state.clear()
                 st.session_state["user_logged_in"] = True
@@ -386,6 +394,7 @@ else:
     else:
         user_name = st.session_state["user_name"]
         st.sidebar.success(f"✅ ログイン中：{user_name}")
+        df_all_users = read_user_list()
         df_local = df.copy()
         df_local["__clean"] = df_local["利用者名"].apply(clean_name)
         df_user_points = df_local[df_local["__clean"] == clean_name(user_name)].drop(columns="__clean", errors="ignore")
@@ -401,7 +410,8 @@ else:
                     last_comment = recent_comment.iloc[-1]
                     st.markdown(
                         f"<div style='background:#e6f2ff;padding:10px;border-radius:8px;'>"
-                        f"<h4>💬 最近のありがとう</h4><p>{last_comment}</p></div>", unsafe_allow_html=True
+                        f"<h4>💬 最近のありがとう</h4><p>{last_comment}</p></div>",
+                        unsafe_allow_html=True
                     )
 
         # 💎 あなたのありがとう履歴
@@ -409,17 +419,37 @@ else:
         if df_user_points.empty:
             st.info("まだポイント履歴がありません。")
         else:
-            df_view = df_user_points[["日付", "項目", "ポイント", "コメント"]].copy().reset_index(drop=True)
+            df_view = df_user_points[["日付", "項目", "ポイント", "コメント"]].copy()
             df_view.rename(columns={"コメント": "AIからのメッセージ"}, inplace=True)
             st.dataframe(
-                df_view.sort_values("日付", ascending=False).reset_index(drop=True),
+                df_view.sort_values("日付", ascending=False)
+                .reset_index(drop=True)
+                .style.hide(axis="index"),
+                use_container_width=True
+            )
+
+        # 📅 月ごとのがんばり
+        st.subheader("📅 あなたの月ごとのがんばり")
+        if not df_user_points.empty:
+            monthly_points = (
+                df_user_points.assign(年月=pd.to_datetime(df_user_points["日付"], errors="coerce").dt.to_period("M").astype(str))
+                .groupby("年月")["ポイント"].sum()
+                .reset_index()
+                .sort_values("年月")
+            )
+            monthly_points["前月比"] = monthly_points["ポイント"].diff()
+            monthly_points["バッジ"] = monthly_points["前月比"].apply(
+                lambda x: "🏅 成長" if x > 0 else ("💪 がんばろう" if x < 0 else "🟢 維持")
+            )
+            monthly_points.rename(columns={"年月": "月", "ポイント": "合計ポイント"}, inplace=True)
+            st.dataframe(
+                monthly_points.reset_index(drop=True).style.hide(axis="index"),
                 use_container_width=True
             )
 
         # 🏠 グループホーム別ランキング（月ごと）
         st.subheader("🏠 グループホーム別ランキング（月ごと）")
         if os.path.exists(USER_FILE) and not df.empty:
-            df_all_users = read_user_list()
             df_rank = df.copy()
             df_rank["年月"] = pd.to_datetime(df_rank["日付"], errors="coerce").dt.to_period("M").astype(str)
             month_list = sorted(df_rank["年月"].dropna().unique(), reverse=True)
@@ -427,43 +457,41 @@ else:
                 selected_month = st.selectbox("表示する月を選択", month_list, index=0)
                 df_month = df_rank[df_rank["年月"] == selected_month]
                 merged = pd.merge(df_month, df_all_users[["氏名", "施設"]], left_on="利用者名", right_on="氏名", how="left")
-
                 df_home = merged.groupby("施設", dropna=False)["ポイント"].sum().reset_index().fillna({"施設": "（未登録）"})
-                df_home = df_home.sort_values("ポイント", ascending=False).reset_index(drop=True)
+                df_home = df_home.sort_values("ポイント", ascending=False)
                 df_home["順位"] = range(1, len(df_home) + 1)
                 df_home["順位表示"] = df_home["順位"].apply(lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x))
 
-                # 自施設を青ハイライト
-                user_fac_vals = df_all_users.loc[df_all_users["氏名"] == user_name, "施設"].values
-                my_fac = user_fac_vals[0] if len(user_fac_vals) else None
-                def hl_fac(row):
-                    if row["施設"] == my_fac:
+                user_fac = df_all_users.loc[df_all_users["氏名"] == user_name, "施設"].iloc[0] if user_name in df_all_users["氏名"].values else None
+
+                def hl(row):
+                    if row["施設"] == user_fac:
                         return ['background-color: #d2e3fc'] * len(row)
                     return [''] * len(row)
 
                 st.dataframe(
-                    df_home[["順位表示", "施設", "ポイント"]].reset_index(drop=True).style.apply(hl_fac, axis=1),
+                    df_home[["順位表示", "施設", "ポイント"]]
+                    .reset_index(drop=True)
+                    .style.apply(hl, axis=1)
+                    .hide(axis="index"),
                     use_container_width=True
                 )
-            else:
-                st.info("月別データがありません。")
 
-        # 👥 月別利用者ランキング（上位10名、自分を青ハイライト）
+        # 👥 月別利用者ランキング（上位10名）
         st.subheader("👥 月別利用者ランキング（上位10名）")
         if not df.empty:
-            df_all_users = read_user_list()
-            df_rank = pd.merge(df, df_all_users[["氏名", "施設"]], left_on="利用者名", right_on="氏名", how="left")
-            df_rank["年月"] = pd.to_datetime(df_rank["日付"], errors="coerce").dt.to_period("M").astype(str)
-            month_list = sorted(df_rank["年月"].dropna().unique(), reverse=True)
-            if month_list:
-                selected_month2 = st.selectbox("利用者ランキング月を選択", month_list, index=0)
-                df_month = df_rank[df_rank["年月"] == selected_month2]
-                df_user_rank = df_month.groupby(["利用者名", "施設"])["ポイント"].sum().reset_index()
-                df_user_rank = df_user_rank.sort_values("ポイント", ascending=False).reset_index(drop=True).head(10)
+            df_rank_user = df.copy()
+            df_rank_user["年月"] = pd.to_datetime(df_rank_user["日付"], errors="coerce").dt.to_period("M").astype(str)
+            month_list_user = sorted(df_rank_user["年月"].dropna().unique(), reverse=True)
+            if month_list_user:
+                selected_month_user = st.selectbox("ランキング月を選択", month_list_user, index=0)
+                df_month_user = df_rank_user[df_rank_user["年月"] == selected_month_user]
+                merged_user = pd.merge(df_month_user, df_all_users[["氏名", "施設"]], left_on="利用者名", right_on="氏名", how="left")
+                df_user_rank = merged_user.groupby(["利用者名", "施設"], dropna=False)["ポイント"].sum().reset_index()
+                df_user_rank = df_user_rank.sort_values("ポイント", ascending=False).head(10).reset_index(drop=True)
                 df_user_rank["順位"] = range(1, len(df_user_rank) + 1)
                 df_user_rank["順位表示"] = df_user_rank["順位"].apply(lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x))
 
-                # 自分を青ハイライト
                 def hl_user(row):
                     if row["利用者名"] == user_name:
                         return ['background-color: #d2e3fc'] * len(row)
@@ -471,33 +499,29 @@ else:
 
                 st.dataframe(
                     df_user_rank[["順位表示", "利用者名", "施設", "ポイント"]]
-                    .reset_index(drop=True)
-                    .style.apply(hl_user, axis=1),
+                    .style.apply(hl_user, axis=1)
+                    .hide(axis="index"),
                     use_container_width=True
                 )
-            else:
-                st.info("月別データがありません。")
 
-        # 🏅 累計利用者ランキング（全期間 上位10名、自分を青ハイライト）
+        # 🏅 累計利用者ランキング（上位10名）
         st.subheader("🏅 累計利用者ランキング（全期間 上位10名）")
         if not df.empty:
-            df_all_users = read_user_list()
-            total_rank = pd.merge(df, df_all_users[["氏名", "施設"]], left_on="利用者名", right_on="氏名", how="left")
-            total_rank = total_rank.groupby(["利用者名", "施設"])["ポイント"].sum().reset_index()
-            total_rank = total_rank.sort_values("ポイント", ascending=False).reset_index(drop=True).head(10)
-            total_rank["順位"] = range(1, len(total_rank) + 1)
-            total_rank["順位表示"] = total_rank["順位"].apply(lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x))
+            merged_total = pd.merge(df, df_all_users[["氏名", "施設"]], left_on="利用者名", right_on="氏名", how="left")
+            df_total = merged_total.groupby(["利用者名", "施設"])["ポイント"].sum().reset_index()
+            df_total = df_total.sort_values("ポイント", ascending=False).head(10).reset_index(drop=True)
+            df_total["順位"] = range(1, len(df_total) + 1)
+            df_total["順位表示"] = df_total["順位"].apply(lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x))
 
-            # 自分を青ハイライト
             def hl_total(row):
                 if row["利用者名"] == user_name:
                     return ['background-color: #d2e3fc'] * len(row)
                 return [''] * len(row)
 
             st.dataframe(
-                total_rank[["順位表示", "利用者名", "施設", "ポイント"]]
-                .reset_index(drop=True)
-                .style.apply(hl_total, axis=1),
+                df_total[["順位表示", "利用者名", "施設", "ポイント"]]
+                .style.apply(hl_total, axis=1)
+                .hide(axis="index"),
                 use_container_width=True
             )
 
