@@ -845,7 +845,7 @@ else:
             df_total = merged_total.groupby(["利用者名", "施設"])["ポイント"].sum().reset_index()
             df_total = df_total.sort_values("ポイント", ascending=False).head(10).reset_index(drop=True)
             df_total["順位"] = range(1, len(df_total) + 1)
-            df_total["順位"] = df_total["順位"].apply(
+            df_total["順位表示"] = df_total["順位"].apply(
                 lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x)
             )
 
@@ -854,7 +854,7 @@ else:
                     return ['background-color: #d2e3fc'] * len(row)
                 return [''] * len(row)
 
-            show_table(df_total[["順位表示", "利用者名", "施設", "ポイント"]].style.apply(hl_total, axis=1))
+            show_table(df_total[["順位", "利用者名", "施設", "ポイント"]].style.apply(hl_total, axis=1))
 
         # 🚪 ログアウト
         st.sidebar.button("🚪 ログアウト", on_click=lambda: (st.session_state.clear(), st.rerun()))
