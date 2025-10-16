@@ -581,7 +581,7 @@ else:
                         return ['background-color: #d2e3fc'] * len(row)
                     return [''] * len(row)
 
-                st.markdown("### 🧮1人あたりウェルサポイント")
+                st.markdown("### 🧮 平均ウェルサポイント")
                 show_table(df_home_avg[["順位表示", "施設", "1人あたりポイント"]].style.apply(hl_fac_avg, axis=1))
 
             else:
