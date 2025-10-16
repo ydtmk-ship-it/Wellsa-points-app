@@ -434,11 +434,12 @@ elif mode == "利用者モード":
     df = load_data()
 
     # =========================================================
-    # 表示関数（非編集・統一デザイン・インデックス非表示）
+    # 表示関数（完全非編集・統一デザイン・インデックス非表示）
     # =========================================================
     def show_table(tbl):
         import pandas as pd
-        # --- Pandas Stylerの場合（ハイライト付き）---
+
+        # --- Styler（ハイライト付き） ---
         if isinstance(tbl, pd.io.formats.style.Styler):
             try:
                 tbl = tbl.hide(axis="index")
@@ -448,10 +449,13 @@ elif mode == "利用者モード":
                 except Exception:
                     pass
             st.markdown(tbl.to_html(), unsafe_allow_html=True)
-        # --- 通常のDataFrame ---
+
+        # --- DataFrame（履歴・推移など） ---
         elif isinstance(tbl, pd.DataFrame):
-            st.dataframe(tbl.reset_index(drop=True), use_container_width=True)
-        # --- それ以外 ---
+            html = tbl.reset_index(drop=True).to_html(index=False, escape=False)
+            st.markdown(f"<div style='overflow-x:auto'>{html}</div>", unsafe_allow_html=True)
+
+        # --- その他 ---
         else:
             st.write(tbl)
 
@@ -534,7 +538,7 @@ elif mode == "利用者モード":
             monthly_points.rename(columns={"年月": "月", "ポイント": "合計ポイント"}, inplace=True)
             show_table(monthly_points)
 
-        # 🏠 施設別ランキング（月ごと）
+        # 🏠 グルホランキング（月ごと）
         st.subheader("🏠 グルホランキング（月ごと）")
         if os.path.exists(USER_FILE) and not df.empty:
             df_all_users = read_user_list()
@@ -544,22 +548,16 @@ elif mode == "利用者モード":
             if month_list:
                 selected_month = st.selectbox("表示する月を選択", month_list, index=0)
                 df_month = df_rank[df_rank["年月"] == selected_month]
-                merged = pd.merge(
-                    df_month, df_all_users[["氏名", "施設"]],
-                    left_on="利用者名", right_on="氏名", how="left"
-                )
+                merged = pd.merge(df_month, df_all_users[["氏名", "施設"]],
+                                  left_on="利用者名", right_on="氏名", how="left")
 
-                # 自施設名（ハイライト用）
+                # 自施設名
                 user_fac_series = df_all_users.loc[df_all_users["氏名"] == user_name, "施設"]
                 user_fac = user_fac_series.iloc[0] if not user_fac_series.empty else None
 
                 # --- 合計ポイント ---
-                df_home_total = (
-                    merged.groupby("施設", dropna=False)["ポイント"].sum().reset_index()
-                    .fillna({"施設": "（未登録）"})
-                    .sort_values("ポイント", ascending=False)
-                    .reset_index(drop=True)
-                )
+                df_home_total = merged.groupby("施設", dropna=False)["ポイント"].sum().reset_index().fillna({"施設": "（未登録）"})
+                df_home_total = df_home_total.sort_values("ポイント", ascending=False).reset_index(drop=True)
                 df_home_total["順位"] = range(1, len(df_home_total) + 1)
                 df_home_total["順位表示"] = df_home_total["順位"].apply(
                     lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x)
@@ -576,7 +574,6 @@ elif mode == "利用者モード":
                 # --- 1人あたり平均ポイント ---
                 df_fac_users = df_all_users.groupby("施設")["氏名"].nunique().reset_index()
                 df_fac_users.rename(columns={"氏名": "利用者数"}, inplace=True)
-
                 df_home_avg = pd.merge(df_home_total, df_fac_users, on="施設", how="left")
                 df_home_avg["利用者数"] = df_home_avg["利用者数"].fillna(0).astype(int)
                 df_home_avg["1人あたりポイント"] = df_home_avg.apply(
@@ -596,7 +593,6 @@ elif mode == "利用者モード":
 
                 st.markdown("### 🧮 1人あたりウェルサポイント")
                 show_table(df_home_avg[["順位表示", "施設", "1人あたりポイント"]].style.apply(hl_fac_avg, axis=1))
-
             else:
                 st.info("月別データがありません。")
 
@@ -609,10 +605,8 @@ elif mode == "利用者モード":
             if month_list_user:
                 selected_month_user = st.selectbox("ランキング月を選択", month_list_user, index=0)
                 df_month_user = df_rank_user[df_rank_user["年月"] == selected_month_user]
-                merged_user = pd.merge(
-                    df_month_user, df_all_users[["氏名", "施設"]],
-                    left_on="利用者名", right_on="氏名", how="left"
-                )
+                merged_user = pd.merge(df_month_user, df_all_users[["氏名", "施設"]],
+                                       left_on="利用者名", right_on="氏名", how="left")
                 df_user_rank = merged_user.groupby(["利用者名", "施設"], dropna=False)["ポイント"].sum().reset_index()
                 df_user_rank = df_user_rank.sort_values("ポイント", ascending=False).head(10).reset_index(drop=True)
                 df_user_rank["順位"] = range(1, len(df_user_rank) + 1)
@@ -630,10 +624,8 @@ elif mode == "利用者モード":
         # 👑 累計利用者ランキング
         st.subheader("👑 累計利用者ランキング")
         if not df.empty:
-            merged_total = pd.merge(
-                df, df_all_users[["氏名", "施設"]],
-                left_on="利用者名", right_on="氏名", how="left"
-            )
+            merged_total = pd.merge(df, df_all_users[["氏名", "施設"]],
+                                    left_on="利用者名", right_on="氏名", how="left")
             df_total = merged_total.groupby(["利用者名", "施設"])["ポイント"].sum().reset_index()
             df_total = df_total.sort_values("ポイント", ascending=False).head(10).reset_index(drop=True)
             df_total["順位"] = range(1, len(df_total) + 1)
