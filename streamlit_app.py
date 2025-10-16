@@ -110,14 +110,29 @@ mode = st.sidebar.radio("モードを選択", ["利用者モード", "職員モ�
 # 職員モード
 # =========================================================
 if mode == "職員モード":
-    st.title("📝 職員モード")
+    st.title("👩‍💼 職員モード")
 
+    # =========================================================
+    # 共通表示関数（Styler対応・インデックス非表示）
+    # =========================================================
+    def show_table(df):
+        import pandas as pd
+        if isinstance(df, pd.io.formats.style.Styler):
+            st.dataframe(df.data.reset_index(drop=True), use_container_width=True, hide_index=True)
+        else:
+            st.dataframe(df.reset_index(drop=True), use_container_width=True, hide_index=True)
+
+    # =========================================================
+    # ログイン状態管理
+    # =========================================================
     if "staff_logged_in" not in st.session_state:
         st.session_state["staff_logged_in"] = False
     if "is_admin" not in st.session_state:
         st.session_state["is_admin"] = False
 
-    # --- ログイン ---
+    # =========================================================
+    # ログイン画面
+    # =========================================================
     if not st.session_state["staff_logged_in"]:
         dept = st.selectbox("部署を選択", list(STAFF_ACCOUNTS.keys()) + ["管理者"])
         input_id = st.text_input("ログインID")
@@ -126,7 +141,11 @@ if mode == "職員モード":
         if st.button("ログイン"):
             if dept == "管理者":
                 if input_id == ADMIN_ID and input_pass == ADMIN_PASS:
-                    st.session_state.update({"staff_logged_in": True, "staff_dept": "管理者", "is_admin": True})
+                    st.session_state.update({
+                        "staff_logged_in": True,
+                        "staff_dept": "管理者",
+                        "is_admin": True
+                    })
                     st.success("管理者としてログインしました！")
                     st.rerun()
                 else:
@@ -134,31 +153,38 @@ if mode == "職員モード":
             else:
                 stored_id, stored_pass = STAFF_ACCOUNTS[dept].split("|")
                 if input_id == stored_id and input_pass == stored_pass:
-                    st.session_state.update({"staff_logged_in": True, "staff_dept": dept, "is_admin": False})
+                    st.session_state.update({
+                        "staff_logged_in": True,
+                        "staff_dept": dept,
+                        "is_admin": False
+                    })
                     st.success(f"{dept} としてログインしました！")
                     st.rerun()
                 else:
                     st.error("IDまたはパスワードが違います。")
 
-    # --- ログイン後 ---
+    # =========================================================
+    # ログイン後
+    # =========================================================
     else:
         dept = st.session_state["staff_dept"]
         is_admin = st.session_state["is_admin"]
         st.sidebar.success(f"✅ ログイン中：{dept}")
 
-        # ✅ 管理者は全機能表示、職員は限定
-        if is_admin:
-            staff_tab_list = [
-                "ポイント付与", "履歴閲覧", "グループホーム別ランキング",
-                "累計利用者ランキング", "利用者登録", "活動項目設定", "施設設定"
-            ]
-        else:
-            staff_tab_list = ["ポイント付与", "履歴閲覧", "グループホーム別ランキング", "累計利用者ランキング"]
+        # 管理者は全機能表示
+        staff_tab_list = (
+            ["ポイント付与", "履歴閲覧", "グループホーム別ランキング", "累計利用者ランキング",
+             "利用者登録", "活動項目設定", "施設設定"]
+            if is_admin
+            else ["ポイント付与", "履歴閲覧", "グループホーム別ランキング", "累計利用者ランキング"]
+        )
 
         staff_tab = st.sidebar.radio("機能を選択", staff_tab_list)
         df = load_data()
 
-        # --- ポイント付与 ---
+        # =========================================================
+        # ポイント付与
+        # =========================================================
         if staff_tab == "ポイント付与":
             st.subheader("💎 ポイント付与")
             df_item = read_item_list()
@@ -194,7 +220,9 @@ if mode == "職員モード":
                         st.success(f"{user_name} に {points_value} pt を付与しました！")
                         st.info(f"AIコメント: {comment}")
 
-        # --- 履歴閲覧 ---
+        # =========================================================
+        # 履歴閲覧
+        # =========================================================
         elif staff_tab == "履歴閲覧":
             st.subheader("📜 ポイント履歴の閲覧")
             if df.empty:
@@ -207,18 +235,15 @@ if mode == "職員モード":
                 if not df_view.empty:
                     df_view = df_view.sort_values("日付", ascending=False).reset_index(drop=True)
                     df_view.rename(columns={"コメント": "AIコメント"}, inplace=True)
-                    st.dataframe(
-                        df_view[["日付", "利用者名", "項目", "ポイント", "所属部署", "AIコメント"]]
-                        .reset_index(drop=True)
-                        .style.hide(axis="index"),
-                        use_container_width=True
-                    )
+                    show_table(df_view[["日付", "利用者名", "項目", "ポイント", "所属部署", "AIコメント"]])
                 else:
                     st.info("該当する履歴がありません。")
 
-        # --- グループホーム別ランキング（月・施設別） ---
+        # =========================================================
+        # グループホーム別ランキング（月・施設別）
+        # =========================================================
         elif staff_tab == "グループホーム別ランキング":
-            st.subheader("🏆 グループホーム別ランキング（月・施設別）")
+            st.subheader("🏠 グループホーム別ランキング（月・施設別）")
             if df.empty:
                 st.info("まだポイントデータがありません。")
             else:
@@ -229,58 +254,55 @@ if mode == "職員モード":
                 if month_list:
                     selected_month = st.selectbox("表示する月を選択", month_list, index=0)
                     df_month = df_rank[df_rank["年月"] == selected_month]
-                    merged = pd.merge(df_month, df_all_users[["氏名", "施設"]], left_on="利用者名", right_on="氏名", how="left")
+                    merged = pd.merge(df_month, df_all_users[["氏名", "施設"]],
+                                      left_on="利用者名", right_on="氏名", how="left")
+
                     facility_list = ["すべて"] + sorted(merged["施設"].dropna().unique().tolist())
                     selected_facility = st.selectbox("施設を選択（またはすべて）", facility_list)
                     if selected_facility != "すべて":
                         merged = merged[merged["施設"] == selected_facility]
 
-                    # 施設別
+                    # 施設別集計
                     df_home = merged.groupby("施設", dropna=False)["ポイント"].sum().reset_index().fillna({"施設": "（未登録）"})
                     df_home = df_home.sort_values("ポイント", ascending=False).reset_index(drop=True)
                     df_home["順位"] = range(1, len(df_home) + 1)
-                    df_home["順位表示"] = df_home["順位"].apply(lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x))
+                    df_home["順位表示"] = df_home["順位"].apply(
+                        lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x))
                     st.markdown("### 🏠 施設別合計ポイント")
-                    st.dataframe(
-                        df_home[["順位表示", "施設", "ポイント"]]
-                        .reset_index(drop=True)
-                        .style.hide(axis="index"),
-                        use_container_width=True
-                    )
+                    show_table(df_home[["順位表示", "施設", "ポイント"]])
 
-                    # 利用者別（施設含む）
+                    # 利用者別集計
                     df_user_rank = merged.groupby(["利用者名", "施設"], dropna=False)["ポイント"].sum().reset_index()
                     df_user_rank = df_user_rank.sort_values("ポイント", ascending=False).head(10).reset_index(drop=True)
                     df_user_rank["順位"] = range(1, len(df_user_rank) + 1)
-                    df_user_rank["順位表示"] = df_user_rank["順位"].apply(lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x))
-                    st.markdown("### 🏅 利用者別ランキング（上位10名）")
-                    st.dataframe(
-                        df_user_rank[["順位表示", "利用者名", "施設", "ポイント"]]
-                        .style.hide(axis="index"),
-                        use_container_width=True
-                    )
+                    df_user_rank["順位表示"] = df_user_rank["順位"].apply(
+                        lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x))
+                    st.markdown("### 👥 利用者別ランキング（上位10名）")
+                    show_table(df_user_rank[["順位表示", "利用者名", "施設", "ポイント"]])
 
-        # --- 累計利用者ランキング ---
+        # =========================================================
+        # 累計利用者ランキング
+        # =========================================================
         elif staff_tab == "累計利用者ランキング":
-            st.subheader("👑 累計利用者ランキング（全期間 上位10名）")
+            st.subheader("🏅 累計利用者ランキング（全期間 上位10名）")
             if df.empty:
                 st.info("データがありません。")
             else:
                 df_all_users = read_user_list()
-                total_rank = pd.merge(df, df_all_users[["氏名", "施設"]], left_on="利用者名", right_on="氏名", how="left")
+                total_rank = pd.merge(df, df_all_users[["氏名", "施設"]],
+                                      left_on="利用者名", right_on="氏名", how="left")
                 total_rank = total_rank.groupby(["利用者名", "施設"])["ポイント"].sum().reset_index()
                 total_rank = total_rank.sort_values("ポイント", ascending=False).head(10).reset_index(drop=True)
                 total_rank["順位"] = range(1, len(total_rank) + 1)
-                total_rank["順位表示"] = total_rank["順位"].apply(lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x))
-                st.dataframe(
-                    total_rank[["順位表示", "利用者名", "施設", "ポイント"]]
-                    .style.hide(axis="index"),
-                    use_container_width=True
-                )
+                total_rank["順位表示"] = total_rank["順位"].apply(
+                    lambda x: "🥇" if x == 1 else "🥈" if x == 2 else "🥉" if x == 3 else str(x))
+                show_table(total_rank[["順位表示", "利用者名", "施設", "ポイント"]])
 
-        # --- 利用者登録 ---
+        # =========================================================
+        # 管理者限定：利用者登録
+        # =========================================================
         if staff_tab == "利用者登録" and is_admin:
-            st.subheader("👫 利用者登録")
+            st.subheader("🧍‍♀️ 利用者登録")
             df_fac = read_facility_list()
             facilities = df_fac["施設名"].tolist() if not df_fac.empty else []
             with st.form("user_form"):
@@ -296,11 +318,12 @@ if mode == "職員モード":
                 df_user.to_csv(USER_FILE, index=False, encoding="utf-8-sig")
                 st.success(f"{full_name}（{facility}）を登録しました。")
                 st.rerun()
+
             if os.path.exists(USER_FILE):
                 df_user = read_user_list()
                 if not df_user.empty:
                     df_user["削除"] = False
-                    edited = st.data_editor(df_user, use_container_width=True)
+                    edited = st.data_editor(df_user, use_container_width=True, hide_index=True)
                     delete_targets = edited[edited["削除"]]
                     if st.button("チェックした利用者を削除"):
                         df_user = df_user.drop(delete_targets.index)
@@ -308,7 +331,9 @@ if mode == "職員モード":
                         st.success("削除しました。")
                         st.rerun()
 
-        # --- 活動項目設定 ---
+        # =========================================================
+        # 管理者限定：活動項目設定
+        # =========================================================
         if staff_tab == "活動項目設定" and is_admin:
             st.subheader("🧩 活動項目設定")
             with st.form("item_form"):
@@ -317,15 +342,17 @@ if mode == "職員モード":
                 submitted = st.form_submit_button("登録")
             if submitted and item_name:
                 df_item = read_item_list()
-                df_item = pd.concat([df_item, pd.DataFrame([{"項目": item_name, "ポイント": point_value}])], ignore_index=True)
+                df_item = pd.concat([df_item, pd.DataFrame([{"項目": item_name, "ポイント": point_value}])],
+                                    ignore_index=True)
                 df_item.to_csv(ITEM_FILE, index=False, encoding="utf-8-sig")
                 st.success(f"{item_name} を登録しました。")
                 st.rerun()
+
             if os.path.exists(ITEM_FILE):
                 df_item = read_item_list()
                 if not df_item.empty:
                     df_item["削除"] = False
-                    edited = st.data_editor(df_item, use_container_width=True)
+                    edited = st.data_editor(df_item, use_container_width=True, hide_index=True)
                     delete_targets = edited[edited["削除"]]
                     if st.button("チェックした項目を削除"):
                         df_item = df_item.drop(delete_targets.index)
@@ -333,7 +360,9 @@ if mode == "職員モード":
                         st.success("削除しました。")
                         st.rerun()
 
-        # --- 施設設定 ---
+        # =========================================================
+        # 管理者限定：施設設定
+        # =========================================================
         if staff_tab == "施設設定" and is_admin:
             st.subheader("🏠 グループホーム設定")
             with st.form("fac_form"):
@@ -341,15 +370,17 @@ if mode == "職員モード":
                 submitted = st.form_submit_button("登録")
             if submitted and name:
                 df_fac = read_facility_list()
-                df_fac = pd.concat([df_fac, pd.DataFrame([{"施設名": name}])], ignore_index=True)
+                df_fac = pd.concat([df_fac, pd.DataFrame([{"施設名": name}])],
+                                   ignore_index=True)
                 df_fac.to_csv(FACILITY_FILE, index=False, encoding="utf-8-sig")
                 st.success(f"{name} を登録しました。")
                 st.rerun()
+
             if os.path.exists(FACILITY_FILE):
                 df_fac = read_facility_list()
                 if not df_fac.empty:
                     df_fac["削除"] = False
-                    edited = st.data_editor(df_fac, use_container_width=True)
+                    edited = st.data_editor(df_fac, use_container_width=True, hide_index=True)
                     delete_targets = edited[edited["削除"]]
                     if st.button("チェックした施設を削除"):
                         df_fac = df_fac.drop(delete_targets.index)
@@ -357,7 +388,9 @@ if mode == "職員モード":
                         st.success("削除しました。")
                         st.rerun()
 
-        # --- ログアウト ---
+        # =========================================================
+        # ログアウトボタン
+        # =========================================================
         if st.button("🚪 ログアウト"):
             st.session_state["staff_logged_in"] = False
             st.session_state["is_admin"] = False
