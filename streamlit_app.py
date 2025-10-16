@@ -434,10 +434,11 @@ elif mode == "利用者モード":
     df = load_data()
 
     # =========================================================
-    # 表示関数（全テーブル統一：非編集・インデックス非表示・ハイライト保持）
+    # 表示関数（非編集・統一デザイン・インデックス非表示）
     # =========================================================
     def show_table(tbl):
         import pandas as pd
+        # --- Pandas Stylerの場合（ハイライト付き）---
         if isinstance(tbl, pd.io.formats.style.Styler):
             try:
                 tbl = tbl.hide(axis="index")
@@ -446,12 +447,13 @@ elif mode == "利用者モード":
                     tbl = tbl.hide_index()
                 except Exception:
                     pass
-            st.dataframe(tbl, use_container_width=True)
+            st.markdown(tbl.to_html(), unsafe_allow_html=True)
+        # --- 通常のDataFrame ---
+        elif isinstance(tbl, pd.DataFrame):
+            st.dataframe(tbl.reset_index(drop=True), use_container_width=True)
+        # --- それ以外 ---
         else:
-            st.dataframe(
-                tbl.reset_index(drop=True),
-                use_container_width=True
-            )
+            st.write(tbl)
 
     # =========================================================
     # ログイン処理
@@ -648,4 +650,3 @@ elif mode == "利用者モード":
 
         # 🚪 ログアウト
         st.sidebar.button("🚪 ログアウト", on_click=lambda: (st.session_state.clear(), st.rerun()))
-
