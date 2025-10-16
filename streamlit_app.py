@@ -434,31 +434,36 @@ elif mode == "利用者モード":
     df = load_data()
 
     # =========================================================
-    # 表示関数（全テーブル統一：非編集・インデックス非表示・ハイライト保持）
+    # 共通テーブル表示（HTML統一：非編集・幅統一・インデックス非表示・ハイライト維持）
     # =========================================================
     def show_table(tbl):
         import pandas as pd
-        # Styler の場合は HTML で描画して index を確実に隠す
+
+        # 共通CSS（全テーブルに統一感を出す）
+        css = """
+        <style>
+        .ws-wrap { overflow-x: auto; }
+        .ws-wrap table { width: 100%; border-collapse: collapse; table-layout: auto; }
+        .ws-wrap thead th { background: #f8f9fb; position: sticky; top: 0; z-index: 1; }
+        .ws-wrap th, .ws-wrap td { padding: 8px 10px; border-bottom: 1px solid #eee; text-align: left; }
+        </style>
+        """
+
+        # Styler（ハイライトあり）は index を確実に隠して HTML 化
         if isinstance(tbl, pd.io.formats.style.Styler):
             try:
-                # 新しい pandas: hide(axis="index")
                 tbl = tbl.hide(axis="index")
             except Exception:
                 try:
-                    # 旧 pandas: hide_index()
                     tbl = tbl.hide_index()
                 except Exception:
                     pass
             html = tbl.to_html()
-            st.markdown(f"<div style='overflow-x:auto'>{html}</div>", unsafe_allow_html=True)
         else:
-            # DataFrame は data_editor で編集不可テーブルとして表示（index 非表示）
-            st.data_editor(
-                tbl.reset_index(drop=True),
-                use_container_width=True,
-                hide_index=True,
-                disabled=True
-            )
+            # DataFrame は index を落として HTML 化
+            html = tbl.reset_index(drop=True).to_html(index=False, border=0)
+
+        st.markdown(css + f"<div class='ws-wrap'>{html}</div>", unsafe_allow_html=True)
 
     # =========================================================
     # ログイン処理
@@ -512,9 +517,10 @@ elif mode == "利用者モード":
                         f"<h4>💬 最近のありがとう</h4><p>{last_comment}</p></div>",
                         unsafe_allow_html=True
                     )
+                    # タイトルとの行間
                     st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
 
-        # 💎 あなたのありがとう履歴（形式をランキングと統一）
+        # 💎 あなたのありがとう履歴（ランキングと同じ形式に統一）
         st.subheader("💎 ウェルサポイント履歴")
         if df_user_points.empty:
             st.info("まだポイント履歴がありません。")
@@ -523,7 +529,7 @@ elif mode == "利用者モード":
             df_view.rename(columns={"コメント": "メッセージ"}, inplace=True)
             show_table(df_view.sort_values("日付", ascending=False))
 
-        # 🌱 月ごとのがんばり（形式をランキングと統一）
+        # 🌱 月ごとのがんばり（ランキングと同じ形式に統一）
         st.subheader("🌱 ウェルサポイント推移")
         if not df_user_points.empty:
             monthly_points = (
