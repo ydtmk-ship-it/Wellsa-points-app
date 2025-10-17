@@ -4,6 +4,58 @@ import os
 from datetime import date
 from openai import OpenAI
 
+# === 先頭で追加 ===
+import gspread
+from google.oauth2.service_account import Credentials
+from gspread_dataframe import get_as_dataframe, set_with_dataframe
+
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+CREDS = Credentials.from_service_account_info(dict(st.secrets["google_service_account"]), scopes=SCOPES)
+GC = gspread.authorize(CREDS)
+SHEET_ID = st.secrets["GSHEET_ID"]
+
+def _open_ws(tab_name: str):
+    sh = GC.open_by_key(SHEET_ID)
+    try:
+        return sh.worksheet(tab_name)
+    except gspread.WorksheetNotFound:
+        return sh.add_worksheet(title=tab_name, rows=2000, cols=26)
+
+def _read_df(tab_name: str, columns: list):
+    ws = _open_ws(tab_name)
+    df = get_as_dataframe(ws, evaluate_formulas=True, header=0)
+    if df is None or df.empty:
+        return pd.DataFrame(columns=columns)
+    # 余計な全NaN行の除去
+    df = df.dropna(how="all")
+    # 想定列だけに揃える（欠けてたら埋める）
+    for c in columns:
+        if c not in df.columns:
+            df[c] = pd.Series(dtype=object)
+    return df[columns].copy()
+
+def _write_df(tab_name: str, df: pd.DataFrame):
+    ws = _open_ws(tab_name)
+    ws.clear()  # 全クリアして書き戻す
+    set_with_dataframe(ws, df)
+
+# === ここから既存のCSV関数を置き換え ===
+def load_data():
+    return _read_df("points_data", ["日付", "利用者名", "項目", "ポイント", "所属部署", "コメント"])
+
+def save_data(df: pd.DataFrame):
+    _write_df("points_data", df)
+
+def read_user_list():
+    return _read_df("users", ["氏名", "施設"])
+
+def read_item_list():
+    return _read_df("items", ["項目", "ポイント"])
+
+def read_facility_list():
+    return _read_df("facilities", ["施設名"])
+
+
 # ===============================
 # 基本設定
 # ===============================
